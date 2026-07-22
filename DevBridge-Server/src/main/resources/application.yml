@@ -1,0 +1,79 @@
+server:
+  address: 127.0.0.1
+  port: 8080
+
+spring:
+  application:
+    name: devbridge-server
+  ai:
+    mcp:
+      server:
+        enabled: true
+        name: ai-devbridge
+        version: 1.0.0
+        instructions: 仅调用已授权的本机和设备工具；敏感操作必须遵循返回的确认或阻断状态。
+        base-url: ""
+        sse-endpoint: /api/ai/mcp/standard/sse
+        sse-message-endpoint: /api/ai/mcp/standard/message
+        request-timeout: 5m
+        capabilities:
+          tool: true
+          resource: false
+          prompt: false
+          completion: false
+
+devbridge:
+  command-timeout: 3s
+  log-stream-timeout: 30m
+  bundled-tool-root: tools
+  download-temp-root: target/devbridge-downloads
+  log-capture-root: target/devbridge-logs
+  ai-config-root: target/devbridge-ai
+  ai-agent-data-root: target/devbridge-ai/agent-data
+  tool-artifact-root: target/devbridge-ai/artifacts
+  tool-audit-root: target/devbridge-ai/audit
+  storage-quota-bytes: 21474836480
+  # by AI.Coding: 模型能力注册提供厂商上限，部署配置作为本机更严格的内存与外发上限。
+  ai-context-window-tokens: 32768
+  ai-context-reserved-tokens: 10000
+  ai-agent-input-timeout: ${DEVBRIDGE_AI_AGENT_INPUT_TIMEOUT:30m}
+  ai-agent-input-timeout-scan-delay: ${DEVBRIDGE_AI_AGENT_INPUT_TIMEOUT_SCAN_DELAY:60000}
+  # by AI.Coding: M4 能力可独立灰度关闭，普通对话、固定工作流和设备管理不依赖这些开关。
+  ai-features:
+    agent-runtime-enabled: ${DEVBRIDGE_AI_AGENT_RUNTIME_ENABLED:true}
+    multi-agent-enabled: ${DEVBRIDGE_AI_MULTI_AGENT_ENABLED:true}
+    model-fallback-enabled: ${DEVBRIDGE_AI_MODEL_FALLBACK_ENABLED:true}
+    trace-enabled: ${DEVBRIDGE_AI_TRACE_ENABLED:true}
+    local-data-maintenance-enabled: ${DEVBRIDGE_AI_LOCAL_DATA_MAINTENANCE_ENABLED:true}
+  control-plane:
+    enabled: true
+    token: ${DEVBRIDGE_CONTROL_PLANE_TOKEN:}
+    allowed-origins:
+      - http://127.0.0.1:15173
+      - http://localhost:15173
+      - http://127.0.0.1:5173
+      - http://localhost:5173
+  executors:
+    tool-core-pool-size: 4
+    tool-max-pool-size: 8
+    tool-queue-capacity: 64
+    command-io-core-pool-size: 8
+    command-io-max-pool-size: 16
+    command-io-queue-capacity: 128
+    agent-event-core-pool-size: 2
+    agent-event-max-pool-size: 4
+    agent-event-queue-capacity: 128
+    event-subscriber-queue-capacity: 512
+    timeout-pool-size: 2
+    keep-alive: 30s
+  ai-mcp-adb:
+    enabled: true
+    confirmation-ttl: 2m
+  max-download-bytes: 524288000
+  tools:
+    adb:
+    hdc:
+    hdc-std:
+    idevice_id:
+    idevicesyslog:
+    idevicebackup2:

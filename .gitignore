@@ -1,0 +1,44 @@
+# Operating system and IDE metadata
+.DS_Store
+**/.DS_Store
+.idea/
+.vscode/
+*.iml
+
+# Local assistant configuration
+.claude/settings.local.json
+
+# Dependency caches
+.pnpm-store/
+**/node_modules/
+
+# Java and frontend build outputs
+target/
+**/target/
+dist/
+**/dist/
+build/
+**/build/
+release/
+**/release/
+coverage/
+**/coverage/
+
+# Electron packaged runtime artifacts
+DevBridge-Electron/resources/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.swp
+*.swo
+
+# Local environment and secret files
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.jks
+

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<!--
+  DevBridge Electron 启动页。
+  by AI.Coding
+-->
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ai DevBridge 启动中</title>
+    <link rel="stylesheet" href="./splash.css" />
+  </head>
+  <body>
+    <main class="shell" aria-live="polite">
+      <aside class="sidebar">
+        <div class="brand">
+          <img class="brand-icon" src="../assets/DevBridge_logo.png" alt="" aria-hidden="true" />
+          <div>
+            <p class="brand-name">Ai DevBridge</p>
+            <p id="brandVersion" class="brand-version">V2026.7.0000</p>
+          </div>
+        </div>
+
+        <section class="sidebar-section">
+          <p class="section-title">启动流程</p>
+          <ol class="steps" aria-label="启动步骤">
+            <li data-step="window" class="active"><span></span>客户端</li>
+            <li data-step="frontend"><span></span>页面服务</li>
+            <li data-step="backend"><span></span>后端服务</li>
+            <li data-step="adb"><span></span>ADB 检查</li>
+            <li data-step="ready"><span></span>进入主页</li>
+          </ol>
+        </section>
+
+        <section class="tool-strip" aria-label="运行端口">
+          <div>
+            <span>FE</span>
+            <strong>15173</strong>
+          </div>
+          <div>
+            <span>API</span>
+            <strong>18180</strong>
+          </div>
+        </section>
+      </aside>
+
+      <section class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">LOCAL DEVICE BRIDGE</p>
+            <h1>正在准备桌面客户端</h1>
+          </div>
+          <div class="online-pill">
+            <span></span>
+            本机启动中
+          </div>
+        </header>
+
+        <section class="hero">
+          <div class="device-stage" aria-hidden="true">
+            <div class="signal signal-one"></div>
+            <div class="signal signal-two"></div>
+            <div class="device android-device">
+              <span></span>
+            </div>
+            <div class="hub">
+              <span></span>
+            </div>
+            <div class="device ios-device">
+              <span></span>
+            </div>
+          </div>
+        </section>
+
+        <section class="status">
+          <div class="status-copy">
+            <p id="stepTitle">初始化客户端窗口</p>
+            <span id="stepDetail">正在载入 Ai DevBridge 启动环境</span>
+          </div>
+          <strong id="progressValue">0%</strong>
+        </section>
+
+        <div class="progress-track" aria-label="启动进度">
+          <div id="progressBar" class="progress-bar"></div>
+        </div>
+
+        <footer class="runtime-note">
+          <span></span>
+          Electron 正在启动本地资源，完成后会自动进入主页
+        </footer>
+      </section>
+    </main>
+    <script src="./build-info.js"></script>
+    <script src="./splash.js"></script>
+  </body>
+</html>

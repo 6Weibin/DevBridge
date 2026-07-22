@@ -1,0 +1,17 @@
+flowchart TB
+    %% project Container View
+    subgraph internal_system["project 内部容器"]
+            container_0_devbridge_server["devbridge.server\njava / devbridge.server 模块"]
+            container_1_entrypoint["entrypoint\njava / 入口文件: DevBridge-Electron/src/main.js"]
+        end
+    container_0_devbridge_server -->|"调用"| container_1_entrypoint
+    container_0_devbridge_server -->|"依赖"| ext_library_0
+    container_0_devbridge_server -->|"依赖"| ext_library_1
+    container_0_devbridge_server -->|"依赖"| ext_frontend_0
+    container_0_devbridge_server -->|"依赖"| ext_frontend_1
+    subgraph external_dependencies["外部依赖"]
+            ext_library_0["@emotion/react\nlibrary 依赖"]
+            ext_library_1["@emotion/styled\nlibrary 依赖"]
+            ext_frontend_0["react-day-picker\nfrontend 依赖"]
+            ext_frontend_1["react-dnd\nfrontend 依赖"]
+        end

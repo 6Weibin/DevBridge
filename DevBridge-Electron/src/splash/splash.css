@@ -1,0 +1,528 @@
+/*
+ * DevBridge Electron 启动页样式。
+ * by AI.Coding
+ */
+:root {
+  color-scheme: light dark;
+  --background: #f5f5f7;
+  --foreground: #1d1d1f;
+  --panel: rgba(255, 255, 255, 0.72);
+  --sidebar: rgba(242, 242, 247, 0.9);
+  --muted: #86868b;
+  --border: rgba(0, 0, 0, 0.08);
+  --primary: #007aff;
+  --primary-soft: rgba(0, 122, 255, 0.1);
+  --accent: #34c759;
+  --accent-soft: rgba(52, 199, 89, 0.1);
+  --warning: #ff9f0a;
+  --shadow: rgba(0, 0, 0, 0.12);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #1c1c1e;
+    --foreground: #f5f5f7;
+    --panel: rgba(44, 44, 46, 0.86);
+    --sidebar: rgba(28, 28, 30, 0.95);
+    --muted: #8e8e93;
+    --border: rgba(255, 255, 255, 0.1);
+    --primary: #0a84ff;
+    --primary-soft: rgba(10, 132, 255, 0.15);
+    --accent: #30d158;
+    --accent-soft: rgba(48, 209, 88, 0.12);
+    --warning: #ffd60a;
+    --shadow: rgba(0, 0, 0, 0.32);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+  overflow: hidden;
+  color: var(--foreground);
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.22) 1px, transparent 1px),
+    linear-gradient(rgba(255, 255, 255, 0.18) 1px, transparent 1px),
+    var(--background);
+  background-size: 36px 36px;
+}
+
+body::before {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 42%);
+}
+
+.shell {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  overflow: hidden;
+  background: var(--panel);
+  backdrop-filter: blur(24px);
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 18px 16px;
+  background: var(--sidebar);
+  border-right: 1px solid var(--border);
+}
+
+.brand {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  height: 40px;
+}
+
+.brand-icon {
+  width: 30px;
+  height: 30px;
+  object-fit: cover;
+  border-radius: 8px;
+  box-shadow: 0 8px 22px rgba(10, 132, 255, 0.28);
+}
+
+.brand-name {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.brand-version {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1;
+}
+
+.sidebar-section {
+  margin-top: 34px;
+}
+
+.section-title,
+.eyebrow {
+  margin: 0;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.steps {
+  padding: 0;
+  margin: 12px 0 0;
+  list-style: none;
+}
+
+.steps li {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 9px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 8px;
+  transition: color 180ms ease, background 180ms ease;
+}
+
+.steps li span {
+  width: 7px;
+  height: 7px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+}
+
+.steps li.active {
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.steps li.active span {
+  background: currentColor;
+  box-shadow: 0 0 0 5px var(--primary-soft);
+}
+
+.steps li.done {
+  color: var(--accent);
+}
+
+.steps li.done span {
+  background: currentColor;
+  border-color: currentColor;
+}
+
+.tool-strip {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: auto;
+}
+
+.tool-strip div {
+  min-width: 0;
+  padding: 9px 10px;
+  background: rgba(255, 255, 255, 0.38);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .tool-strip div {
+    background: rgba(255, 255, 255, 0.04);
+  }
+}
+
+.tool-strip span,
+.tool-strip strong {
+  display: block;
+}
+
+.tool-strip span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.tool-strip strong {
+  margin-top: 4px;
+  overflow: hidden;
+  font: 600 12px/1.1 "SF Mono", Menlo, monospace;
+  text-overflow: ellipsis;
+}
+
+.workspace {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+@media (prefers-color-scheme: dark) {
+  .workspace {
+    background: rgba(28, 28, 30, 0.58);
+  }
+}
+
+.topbar {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 64px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+h1 {
+  margin: 3px 0 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: 0;
+}
+
+.online-pill {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent);
+  border-radius: 999px;
+}
+
+.online-pill span {
+  width: 6px;
+  height: 6px;
+  background: var(--accent);
+  border-radius: 999px;
+  box-shadow: 0 0 0 4px var(--accent-soft);
+  animation: status-pulse 1.5s ease-in-out infinite;
+}
+
+.hero {
+  display: grid;
+  flex: 1;
+  min-height: 0;
+  place-items: center;
+  padding: 28px;
+}
+
+.device-stage {
+  position: relative;
+  width: min(420px, 100%);
+  height: 230px;
+}
+
+.signal,
+.device,
+.hub {
+  position: absolute;
+}
+
+.signal {
+  top: 107px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--primary), transparent);
+  border-radius: 999px;
+  opacity: 0.42;
+  animation: signal-flow 2.2s ease-in-out infinite;
+}
+
+.signal-one {
+  right: 50%;
+  left: 58px;
+}
+
+.signal-two {
+  right: 58px;
+  left: 50%;
+  animation-delay: 0.32s;
+}
+
+.device {
+  top: 60px;
+  width: 74px;
+  height: 112px;
+  background: rgba(255, 255, 255, 0.64);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: 0 14px 38px var(--shadow);
+}
+
+@media (prefers-color-scheme: dark) {
+  .device {
+    background: rgba(255, 255, 255, 0.06);
+  }
+}
+
+.device span {
+  position: absolute;
+  inset: 13px 9px;
+  content: "";
+  background:
+    linear-gradient(var(--primary-soft), var(--primary-soft)) 0 0 / 100% 18px no-repeat,
+    linear-gradient(var(--accent-soft), var(--accent-soft)) 0 28px / 74% 9px no-repeat,
+    linear-gradient(rgba(142, 142, 147, 0.16), rgba(142, 142, 147, 0.16)) 0 46px / 100% 34px no-repeat;
+  border-radius: 10px;
+}
+
+.android-device {
+  left: 14px;
+}
+
+.ios-device {
+  right: 14px;
+}
+
+.hub {
+  top: 72px;
+  left: 50%;
+  display: grid;
+  width: 88px;
+  height: 88px;
+  place-items: center;
+  background: var(--primary-soft);
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
+  border-radius: 22px;
+  transform: translateX(-50%);
+  box-shadow: 0 16px 45px rgba(10, 132, 255, 0.2);
+}
+
+.hub::before,
+.hub::after {
+  position: absolute;
+  content: "";
+  border: 1px solid color-mix(in srgb, var(--primary) 24%, transparent);
+  border-radius: 28px;
+  animation: hub-ring 2.4s ease-out infinite;
+}
+
+.hub::before {
+  inset: -14px;
+}
+
+.hub::after {
+  inset: -28px;
+  animation-delay: 0.6s;
+}
+
+.hub span {
+  width: 34px;
+  height: 34px;
+  background:
+    radial-gradient(circle at center, #fff 0 14%, transparent 16%),
+    linear-gradient(90deg, transparent 0 42%, #fff 42% 58%, transparent 58%),
+    linear-gradient(transparent 0 42%, #fff 42% 58%, transparent 58%),
+    var(--primary);
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(10, 132, 255, 0.28);
+}
+
+.status {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 0 24px 14px;
+}
+
+.status-copy {
+  min-width: 0;
+}
+
+.status-copy p {
+  margin: 0 0 5px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.status-copy span {
+  display: block;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#progressValue {
+  flex: 0 0 auto;
+  color: var(--primary);
+  font: 600 24px/1 "SF Mono", Menlo, monospace;
+}
+
+.progress-track {
+  height: 5px;
+  margin: 0 24px;
+  overflow: hidden;
+  background: rgba(142, 142, 147, 0.16);
+  border-radius: 999px;
+}
+
+.progress-bar {
+  width: 0;
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  border-radius: inherit;
+  transition: width 420ms ease;
+}
+
+.runtime-note {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 24px;
+  color: var(--muted);
+  font-size: 11px;
+  border-top: 1px solid var(--border);
+}
+
+.runtime-note span {
+  width: 6px;
+  height: 6px;
+  background: var(--warning);
+  border-radius: 999px;
+}
+
+@media (max-width: 720px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    display: none;
+  }
+
+  .topbar,
+  .status,
+  .runtime-note {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .progress-track {
+    margin-right: 16px;
+    margin-left: 16px;
+  }
+
+  .device-stage {
+    height: 210px;
+  }
+}
+
+@keyframes node-pulse {
+  0%,
+  100% {
+    transform: scale(0.82);
+    opacity: 0.72;
+  }
+  50% {
+    transform: scale(1.16);
+    opacity: 1;
+  }
+}
+
+@keyframes status-pulse {
+  0%,
+  100% {
+    opacity: 0.72;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes signal-flow {
+  0%,
+  100% {
+    opacity: 0.18;
+    transform: scaleX(0.74);
+  }
+  50% {
+    opacity: 0.62;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes hub-ring {
+  0% {
+    opacity: 0.68;
+    transform: scale(0.88);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.08);
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "name": "devbridge-electron",
+  "version": "0.1.0",
+  "description": "Ai DevBridge desktop client PoC",
+  "private": true,
+  "main": "src/main.js",
+  "scripts": {
+    "build:front": "npm --prefix ../DevBridge-Front run build",
+    "build:server": "mvn -f ../DevBridge-Server/pom.xml -DskipTests package",
+    "prepare:resources": "node scripts/prepare-resources.js",
+    "build:resources": "npm run build:front && npm run build:server && npm run prepare:resources",
+    "start": "npm run build:resources && electron .",
+    "package": "npm run build:resources && electron-builder --mac zip",
+    "package:dir": "npm run build:resources && electron-builder --dir"
+  },
+  "build": {
+    "appId": "com.devbridge.desktop",
+    "productName": "Ai DevBridge",
+    "asar": true,
+    "electronDist": "node_modules/electron/dist",
+    "electronVersion": "31.7.7",
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources",
+        "to": "devbridge"
+      }
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "artifactName": "${productName}-${version}-${arch}.${ext}",
+    "mac": {
+      "icon": "build/icon.icns",
+      "category": "public.app-category.developer-tools",
+      "target": [
+        "zip"
+      ]
+    },
+    "win": {
+      "icon": "build/icon.ico"
+    },
+    "linux": {
+      "icon": "build/icon.png"
+    }
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3"
+  }
+}

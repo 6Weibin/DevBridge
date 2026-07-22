@@ -1,0 +1,17 @@
+flowchart TB
+    %% project System Context
+    user["用户\n使用系统的终端用户"]
+    system["project\nproject 系统"]
+    user -->|"使用"| system
+    library_0["@emotion/react\nlibrary 外部服务"]
+    system -->|"调用"| library_0
+    library_1["@emotion/styled\nlibrary 外部服务"]
+    system -->|"调用"| library_1
+    library_2["@mui/icons-material\nlibrary 外部服务"]
+    system -->|"调用"| library_2
+    frontend_0["react-day-picker\nfrontend 外部服务"]
+    system -->|"调用"| frontend_0
+    frontend_1["react-dnd\nfrontend 外部服务"]
+    system -->|"调用"| frontend_1
+    frontend_2["react-dnd-html5-backend\nfrontend 外部服务"]
+    system -->|"调用"| frontend_2

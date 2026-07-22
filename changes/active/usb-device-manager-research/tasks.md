@@ -1,0 +1,155 @@
+# 任务清单
+
+> 来源: spec.md / design.md  
+> 生成时间: 2026-06-29  
+> 阶段: coding-ready
+
+## 已完成 PoC/预研任务
+
+- [x] 【工具集成】下载并登记可内置的官方工具
+- [x] 【后端识别】后端优先识别项目内置工具
+- [x] 【有工具验证】执行真实工具命令验证
+- [x] 【后端骨架】创建 Spring Boot 3 PoC 工程
+- [x] 【命令适配】实现安全命令执行、工具探测和设备枚举
+- [x] 【前端接入】让 H5 Demo 消费后端 PoC API
+- [x] 【验证记录】执行后端测试、前端构建并输出 Demo 结果
+- [x] 【Windows ADB 集成】下载并接入 Windows 版 Android Platform-Tools
+- [x] 【运行环境诊断】前后端展示当前平台工具目录
+- [x] 【Windows 启动验证材料】补充 Windows 后端启动和 ADB 验证脚本
+- [x] 【正式规格】生成 MVP spec
+- [x] 【技术设计】生成 MVP design
+
+## 待实施任务
+
+- [x] 【错误模型】(后端) 建立统一业务错误响应
+  - 目标: 新增统一业务错误模型和异常处理，供设备、文件、日志接口复用。
+  - 涉及文件: `DevBridge-Server/src/main/java/com/devbridge/server/api/**`, `DevBridge-Server/src/main/java/com/devbridge/server/model/**`
+  - 预期结果: 平台不支持、工具缺失、路径拒绝、命令超时等错误都有稳定错误码。
+- [x] 【设备详情】(后端) 实现 Android 设备详情服务
+  - 目标: 返回 Android 品牌、型号、系统版本、API、电量、分辨率、存储摘要。
+  - 涉及文件: `DevBridge-Server/src/main/java/com/devbridge/server/api/**`, `DevBridge-Server/src/main/java/com/devbridge/server/service/**`, `DevBridge-Server/src/test/java/**`
+  - 预期结果: 读取失败字段返回空值，接口不影响基础设备信息。
+- [x] 【路径安全】(后端) 实现 Android 远端路径校验
+  - 目标: 限制文件浏览和下载只能访问 `/sdcard`、`/storage/emulated/0`。
+  - 涉及文件: `DevBridge-Server/src/main/java/com/devbridge/server/service/AndroidPathGuard.java`, `DevBridge-Server/src/test/java/**`
+  - 预期结果: 空路径、`..`、非允许根目录和控制字符被拒绝。
+- [x] 【文件列表】(后端) 实现 Android 公共目录浏览
+  - 目标: 返回允许目录下文件和目录的名称、路径、类型、大小、修改时间、权限摘要。
+  - 涉及文件: `DevBridge-Server/src/main/java/com/devbridge/server/api/**`, `DevBridge-Server/src/main/java/com/devbridge/server/service/**`, `DevBridge-Server/src/main/java/com/devbridge/server/model/**`, `DevBridge-Server/src/test/java/**`
+  - 预期结果: 目录不存在和解析失败返回业务错误。
+- [x] 【文件下载】(后端) 实现 Android 单文件下载
+  - 目标: 支持允许目录内单文件下载，并清理服务端临时文件。
+  - 涉及文件: `DevBridge-Server/src/main/java/com/devbridge/server/api/**`, `DevBridge-Server/src/main/java/com/devbridge/server/service/**`, `DevBridge-Server/src/main/resources/application.yml`, `DevBridge-Server/src/test/java/**`
+  - 预期结果: 下载失败、取消、完成后不遗留临时文件。
+- [x] 【流式命令】(后端) 新增长进程执行能力
+  - 目标: 支持 logcat 这类长进程 stdout/stderr 逐行读取和显式停止。
+  - 涉及文件: `DevBridge-Server/src/main/java/com/devbridge/server/command/**`, `DevBridge-Server/src/test/java/**`
+  - 预期结果: 长进程可超时、可停止，不接受 shell 字符串。
+- [x] 【日志流】(后端) 实现 Android logcat SSE
+  - 目标: 支持实时日志 SSE、停止接口和单设备单会话限制。
+  - 涉及文件: `DevBridge-Server/src/main/java/com/devbridge/server/api/**`, `DevBridge-Server/src/main/java/com/devbridge/server/service/**`, `DevBridge-Server/src/main/java/com/devbridge/server/model/**`, `DevBridge-Server/src/test/java/**`
+  - 预期结果: SSE 完成、超时、异常和前端断开时停止日志进程。
+- [x] 【日志导出】(后端) 实现 Android 日志导出
+  - 目标: 导出当前设备 logcat 快照并返回浏览器下载响应。
+  - 涉及文件: `DevBridge-Server/src/main/java/com/devbridge/server/api/**`, `DevBridge-Server/src/main/java/com/devbridge/server/service/**`, `DevBridge-Server/src/test/java/**`
+  - 预期结果: 命令超时和设备断开返回业务错误。
+- [x] 【降级发现】(后端) 补强 HarmonyOS 和 iOS 降级能力
+  - 目标: 保持 hdc/idevice 发现逻辑，补充输出解析样本和工具缺失禁用依据。
+  - 涉及文件: `DevBridge-Server/src/main/java/com/devbridge/server/service/**`, `DevBridge-Server/src/test/java/**`
+  - 预期结果: hdc/idevice 工具缺失时前端可据此禁用入口。
+- [x] 【前端数据】(前端) 接入设备详情和文件接口
+  - 目标: 设备详情页、文件树和文件下载使用真实后端接口。
+  - 涉及文件: `DevBridge-Front/src/app/App.tsx`
+  - 预期结果: 后端不可达时保留演示数据降级。
+- [x] 【前端日志】(前端) 接入实时日志和导出
+  - 目标: 使用 SSE 接入实时日志，并实现开始、停止、清除、导出动作。
+  - 涉及文件: `DevBridge-Front/src/app/App.tsx`
+  - 预期结果: 单视图最多保留 1000 行日志，错误事件可展示。
+- [x] 【前端状态】(前端) 完善错误、授权和工具缺失提示
+  - 目标: 展示统一错误码文案，禁用不可执行入口，保证文本不溢出。
+  - 涉及文件: `DevBridge-Front/src/app/App.tsx`
+  - 预期结果: unauthorized、offline、工具缺失、路径拒绝、命令超时都有明确 UI 状态。
+- [x] 【同源打包】(全栈) 集成前端静态资源到后端
+  - 目标: 前端构建产物复制到后端静态目录，后端 jar 可同时访问 H5 和 API。
+  - 涉及文件: `DevBridge-Server/pom.xml`, `DevBridge-Server/src/main/resources/static/**`, `DevBridge-Front/**`, `DevBridge-Server/README.md`
+  - 预期结果: 保留 Vite 开发模式，同时支持后端 jar 单进程访问。
+- [x] 【设备实时刷新】(前端) 自动同步 USB 设备连接状态
+  - 目标: 设备列表定时同步后端真实设备快照，连接后自动加载，断开后自动移除。
+  - 涉及文件: `DevBridge-Front/src/app/App.tsx`
+  - 预期结果: 后端在线时不再用演示设备覆盖真实空列表；设备断开后列表移除并停止对应日志流。
+- [x] 【iOS 设备详情】(全栈) 补全 iOS 设备信息展示 ← delta
+  - 目标: 已连接 iOS 设备可读取并展示设备名称、机型标识、系统版本、Build、电量、CPU 架构和存储摘要。
+  - 涉及文件: `DevBridge-Server/src/main/java/com/devbridge/server/**`, `DevBridge-Server/src/test/java/**`, `DevBridge-Front/src/app/App.tsx`
+  - 预期结果: `/api/devices/ios/{udid}/detail` 返回 iOS 详情；前端 iOS 设备信息区不再只显示型号和 UDID。
+- [x] 【iOS 实时日志】(全栈) 接入 idevicesyslog 实时日志 ← delta
+  - 目标: 已连接 iOS 设备可点击开始采集，后端通过 `idevicesyslog` 输出 SSE 实时日志。
+  - 涉及文件: `DevBridge-Server/src/main/java/com/devbridge/server/**`, `DevBridge-Server/src/test/java/**`, `DevBridge-Front/src/app/App.tsx`
+  - 预期结果: `/api/devices/ios/{udid}/logs/stream` 返回 iOS 系统日志事件；前端日志页点击开始采集有实时日志输出。
+- [x] 【Android 设备详情补全】(全栈) 补全 Android 设备信息并稳定轮询合并 ← delta
+  - 目标: 已连接 Android 设备可读取安全补丁、内核、基带、Build 指纹、CPU、GPU、内存和像素密度；列表轮询不再用占位品牌/型号/系统版本覆盖详情数据。
+  - 涉及文件: `DevBridge-Server/src/main/java/com/devbridge/server/**`, `DevBridge-Server/src/test/java/**`, `DevBridge-Front/src/app/App.tsx`
+  - 预期结果: `/api/devices/android/{serial}/detail` 返回更完整的 Android 详情；前端设备列表和设备信息页在数据不变时不闪烁。
+- [x] 【Android 根目录文件浏览】(全栈) 从整机根目录浏览 Android 文件并修复 sdcard 符号链接显示 ← delta
+  - 目标: Android 文件管理默认从 `/` 加载整机可见目录，进入 `/sdcard` 时能跟随符号链接展示真实公共存储内容；无权限目录返回明确错误。
+  - 涉及文件: `DevBridge-Server/src/main/java/com/devbridge/server/service/**`, `DevBridge-Server/src/test/java/**`, `DevBridge-Front/src/app/App.tsx`
+  - 预期结果: `/api/devices/android/{serial}/files?path=/` 返回根目录节点；点击 `sdcard` 能进入并显示真实文件列表。
+- [x] 【文件页签现场保持】(前端) 切换日志/文件页签不重置文件浏览状态 ← delta
+  - 目标: 用户在文件管理中浏览到任意目录或选中文件后，切换到实时日志再切回文件管理，目录、文件列表和选中文件保持不变。
+  - 涉及文件: `DevBridge-Front/src/app/App.tsx`
+  - 预期结果: 同一设备内文件页只在首次进入时自动加载根目录，页签切换不会重新请求并覆盖当前文件树。
+- [x] 【媒体文件预览】(全栈) 文件详情支持图片和视频预览 ← delta
+  - 目标: 文件管理选中图片或视频文件时，右侧详情展示预览；视频必须由用户点击播放后才开始播放。
+  - 涉及文件: `DevBridge-Server/src/main/java/com/devbridge/server/api/FileController.java`, `DevBridge-Front/src/app/App.tsx`
+  - 预期结果: 图片以内联方式显示；视频显示播放器控件且不自动播放、不自动预加载。
+- [x] 【文件树排序】(全栈) 文件管理树形菜单稳定排序 ← delta
+  - 目标: 文件管理目录列表中文件夹排在文件前面，并且同类型节点按文件名称顺序展示。
+  - 涉及文件: `DevBridge-Server/src/main/java/com/devbridge/server/service/RemoteFileParser.java`, `DevBridge-Front/src/app/App.tsx`, `DevBridge-Server/src/test/java/com/devbridge/server/service/RemoteFileParserTest.java`
+  - 预期结果: 后端 API 返回和前端树形菜单展示均保持目录优先、名称升序。
+- [x] 【实时日志采集落盘与导出】(全栈) 本次采集日志滚动落盘并 zip 导出 ← delta
+  - 目标: 点击开始采集后，后端按 `日期/设备类型/设备型号/log_{yyyyMMdd}_{number}.log` 保存本次采集日志；导出时停止采集并下载 zip。
+  - 涉及文件: `DevBridge-Server/src/main/java/com/devbridge/server/service/LogCaptureService.java`, `DevBridge-Server/src/main/java/com/devbridge/server/service/LogStreamService.java`, `DevBridge-Server/src/main/java/com/devbridge/server/api/LogController.java`, `DevBridge-Front/src/app/App.tsx`, `DevBridge-Server/src/test/java/com/devbridge/server/service/**`
+  - 预期结果: 单个日志文件不超过 10MB，最多保留 20 个滚动文件；导出包包含本次采集保留的日志文件并保留相对目录结构。
+- [x] 【设备截图】(全栈) 设备信息页接入真实截图能力 ← delta
+  - 目标: 设备信息页点击截图后，从后端拉取当前 Android 设备屏幕 PNG 并在右侧面板预览，可保存到本地。
+  - 涉及文件: `DevBridge-Server/src/main/java/com/devbridge/server/api/DeviceController.java`, `DevBridge-Server/src/main/java/com/devbridge/server/service/AndroidDeviceService.java`, `DevBridge-Front/src/app/App.tsx`
+  - 预期结果: `/api/devices/android/{serial}/screenshot` 返回 PNG；设备断开、平台不支持或截图失败返回统一业务错误。
+- [x] 【设备截图自动化】(前端) Android 设备首次进入设备信息页自动截图 ← delta
+  - 目标: 设备列表切换到支持截图的设备并首次进入设备信息页时，自动执行一次截图；不支持截图的平台不显示截图区域。
+  - 涉及文件: `DevBridge-Front/src/app/App.tsx`
+  - 预期结果: Android 设备信息页首次进入自动拉取截图；iOS/HarmonyOS 信息页不渲染屏幕截图面板。
+- [x] 【Android 应用名称解析】(后端) 从设备包详情中尽量读取真实应用名称 ← delta
+  - 目标: 应用管理列表在 Android 命令输出暴露 label 时展示真实应用名称，不拉取 APK、不安装 helper。
+  - 涉及文件: `DevBridge-Server/src/main/java/com/devbridge/server/service/AndroidDeviceService.java`, `DevBridge-Server/src/main/java/com/devbridge/server/service/DeviceOutputParser.java`, `DevBridge-Server/src/test/java/com/devbridge/server/service/**`
+  - 预期结果: 后端优先使用 dumpsys/cmd package 输出中的可读 label；缺失或不可读时继续回退包名，避免影响列表加载性能。
+- [x] 【Android 应用详情弹窗】(全栈) 点击应用名称查看单个应用详情 ← delta
+  - 目标: 应用管理列表中点击应用名称后，弹出应用详情信息窗并展示版本、SDK、UID、路径、安装时间、状态和权限信息。
+  - 涉及文件: `DevBridge-Server/src/main/java/com/devbridge/server/api/AppController.java`, `DevBridge-Server/src/main/java/com/devbridge/server/model/AppDetail.java`, `DevBridge-Server/src/main/java/com/devbridge/server/service/**`, `DevBridge-Server/src/test/java/com/devbridge/server/service/**`, `DevBridge-Front/src/app/App.tsx`
+  - 预期结果: 后端按包名读取单个应用 dumpsys 详情；前端弹窗支持加载态、错误态和详情展示，读取失败不影响应用列表。
+- [x] 【Android 应用右键菜单与卸载】(全栈) 应用名称右键操作和卸载防误触 ← delta
+  - 目标: 应用管理列表中右键应用名称弹出“查看详情、卸载应用”；查看详情复用详情弹窗；卸载必须输入完整包名二次确认。
+  - 涉及文件: `DevBridge-Server/src/main/java/com/devbridge/server/api/AppController.java`, `DevBridge-Server/src/main/java/com/devbridge/server/service/AndroidDeviceService.java`, `DevBridge-Server/src/test/java/com/devbridge/server/service/AndroidDeviceServiceTest.java`, `DevBridge-Front/src/app/App.tsx`
+  - 预期结果: 卸载接口使用参数数组调用 `pm uninstall`；前端只有在确认输入包名完全一致时允许卸载，成功后刷新应用列表。
+- [x] 【Android 文件右键菜单】(全栈) 文件节点右键操作和受控文件变更 ← delta
+  - 目标: 文件管理中文件节点右键弹出“文件详情、删除文件、重命名、拉取到本地”；删除和重命名走后端受控接口。
+  - 涉及文件: `DevBridge-Server/src/main/java/com/devbridge/server/api/FileController.java`, `DevBridge-Server/src/main/java/com/devbridge/server/service/AndroidDeviceService.java`, `DevBridge-Server/src/main/java/com/devbridge/server/service/AndroidPathGuard.java`, `DevBridge-Server/src/test/java/com/devbridge/server/service/AndroidDeviceServiceTest.java`, `DevBridge-Front/src/app/App.tsx`
+  - 预期结果: 右键菜单仅对 Android 文件启用；删除必须输入完整文件名确认；重命名拒绝路径分隔符和空名称；操作成功后刷新当前目录。
+- [x] 【Android 文件创建副本】(全栈) 文件右键菜单支持当前目录副本创建 ← delta
+  - 目标: 文件管理中文件节点右键弹出“创建副本”，在当前目录复制选中文件。
+  - 涉及文件: `DevBridge-Server/src/main/java/com/devbridge/server/api/FileController.java`, `DevBridge-Server/src/main/java/com/devbridge/server/service/AndroidDeviceService.java`, `DevBridge-Server/src/test/java/com/devbridge/server/service/AndroidDeviceServiceTest.java`, `DevBridge-Front/src/app/App.tsx`
+  - 预期结果: 首个副本命名为 `{原名称}-副本.{后缀}`；同名副本已存在时按 `{原名称}-副本1.{后缀}`、`{原名称}-副本2.{后缀}` 递增；操作成功后刷新当前目录并选中新副本。
+- [x] 【文件名称复制】(前端) 文件菜单和详情标题支持复制文件名称 ← delta
+  - 目标: 文件右键菜单新增“复制文件名称”；文件详情标题名称后新增复制图标按钮。
+  - 涉及文件: `DevBridge-Front/src/app/App.tsx`
+  - 预期结果: 两个入口都复制当前文件名称到剪贴板，并通过顶部 tips 提示复制成功或失败；Electron 和非 Electron 前端均可使用同一逻辑。
+- [x] 【设备截图面板固定宽度】(前端) 稳定设备信息页截图预览尺寸 ← delta
+  - 目标: 设备信息右侧截图区域使用固定宽度，窗口宽度变化时不再按百分比缩放；截图生成前手机模拟区域保持正常高度。
+  - 涉及文件: `DevBridge-Front/src/app/App.tsx`
+  - 预期结果: Android 截图面板固定为 360px；分辨率支持 `x`、`X`、`×` 格式解析，未截图前也按设备比例显示稳定占位。
+- [ ] 【联调验收】联调测试与文档更新
+  - 目标: 完成 macOS + Android 真机主链路、Windows x64 内置 adb 和关键构建验证。
+  - 涉及文件: `changes/active/usb-device-manager-research/**`, `DevBridge-Server/README.md`, `DevBridge-Server/tools/TOOLS.md`
+  - 预期结果: `mvn test`、`pnpm build`、关键 API 和真机主链路均有记录。
+
+## 完成状态
+
+> 待实施: 1 项（真机联调验收）
