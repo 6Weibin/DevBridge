@@ -32,7 +32,7 @@ export function AiToolCallCard({ toolName, result, running }: AiToolCallCardProp
           <p className="line-clamp-2 break-words">{result.message || result.errorCode || "工具调用完成"}</p>
           {result.commandSummary && (
             <div className="min-w-0 max-w-full overflow-hidden rounded-md border border-border bg-muted px-2 py-1">
-              <div className="mb-0.5 text-[10px] text-muted-foreground">执行命令</div>
+              <div className="mb-0.5 text-[10px] text-muted-foreground">{commandSummaryLabel(displayName)}</div>
               <code className="block max-h-20 max-w-full overflow-auto whitespace-pre-wrap break-all font-mono text-[11px] text-foreground/85 [overflow-wrap:anywhere]">{result.commandSummary}</code>
             </div>
           )}
@@ -43,6 +43,13 @@ export function AiToolCallCard({ toolName, result, running }: AiToolCallCardProp
       )}
     </div>
   );
+}
+
+/** 网络工具展示业务语义，其余执行工具继续显示实际命令。 */
+function commandSummaryLabel(displayName: string) {
+  if (displayName === "网络搜索") return "检索内容";
+  if (displayName === "网页读取") return "目标地址";
+  return "执行命令";
 }
 
 /**

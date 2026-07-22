@@ -173,8 +173,11 @@ public class AiToolRegistry {
         List<String> capabilities = candidates.stream()
                 .flatMap(value -> value.metadata().capabilities().stream())
                 .distinct().toList();
+        Domain domain = scope == AiToolScope.LOCAL_DEVELOPMENT
+                ? Domain.CROSS_PLATFORM
+                : scope == AiToolScope.GENERAL_ASSISTANT ? Domain.GENERAL : Domain.DEVICE_MANAGEMENT;
         RouteRequest request = new RouteRequest(
-                scope == AiToolScope.LOCAL_DEVELOPMENT ? Domain.CROSS_PLATFORM : Domain.DEVICE_MANAGEMENT,
+                domain,
                 ExecutionMode.DIRECT_TOOL,
                 ToolContract.RiskLevel.HIGH,
                 new ModelCapability(
@@ -230,6 +233,14 @@ public class AiToolRegistry {
     private boolean platformIndependentVisible(String toolId, AiToolScope scope) {
         if (scope == AiToolScope.LOCAL_DEVELOPMENT) {
             return true;
+        }
+        if (scope == AiToolScope.GENERAL_ASSISTANT) {
+            return toolId.startsWith("web.") || toolId.startsWith("device.")
+                    || toolId.startsWith("app.") || toolId.startsWith("log.")
+                    || toolId.startsWith("workflow.device.") || toolId.startsWith("workflow.log.")
+                    || toolId.startsWith("agent.device.") || toolId.startsWith("agent.app.")
+                    || toolId.startsWith("agent.log.") || toolId.startsWith("agent.verification.")
+                    || toolId.startsWith("agent.input.");
         }
         if (scope == AiToolScope.LOG_ANALYSIS) {
             return toolId.startsWith("log.") || toolId.startsWith("workflow.log.")
@@ -450,16 +461,21 @@ public class AiToolRegistry {
      */
     private AdbMcpToolResult compatibleResult(CallRequest request, CallResult result) {
         JsonNode output = result.payload().output();
+        ToolContract.Error diagnostic = result.diagnostics().error();
         String stdout = output != null && output.has("stdout")
                 ? output.path("stdout").asText("")
                 : output == null ? "" : output.toPrettyString();
         String stderr = output == null ? "" : output.path("stderr").asText("");
+        if (!StringUtils.hasText(stderr) && diagnostic != null) {
+            // 工具失败详情必须传给模型和卡片，否则模型只能根据通用错误码猜测原因。
+            stderr = diagnostic.detail();
+        }
         String confirmationToken = result.status() == CallStatus.WAITING_CONFIRMATION
                 ? confirmationToken(request, result)
                 : "";
-        String errorCode = result.diagnostics().error() == null
+        String errorCode = diagnostic == null
                 ? ""
-                : result.diagnostics().error().code();
+                : diagnostic.code();
         boolean inputRequired = "agent.input.request".equals(request.tool().toolId());
         if (inputRequired) {
             errorCode = "AI_INPUT_REQUIRED";
@@ -475,7 +491,9 @@ public class AiToolRegistry {
                 legacyRisk(result.riskDecision().level()),
                 result.status() == CallStatus.WAITING_CONFIRMATION,
                 confirmationToken,
-                inputRequired ? output.path("reason").asText("需要用户补充信息") : result.payload().summary(),
+                inputRequired
+                        ? output.path("reason").asText("需要用户补充信息")
+                        : diagnostic == null ? result.payload().summary() : diagnostic.message(),
                 errorCode,
                 definitionTitle(result.tool().toolId()),
                 output == null ? "" : output.path("commandSummary").asText(""));

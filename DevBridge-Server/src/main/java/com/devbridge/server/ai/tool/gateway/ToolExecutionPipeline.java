@@ -12,6 +12,7 @@ import com.devbridge.server.ai.agent.runtime.AgentTaskCancellationCoordinator;
 import com.devbridge.server.ai.agent.runtime.AgentToolExecutionDecision;
 import com.devbridge.server.ai.agent.runtime.AgentToolExecutionRequest;
 import com.devbridge.server.ai.security.SensitiveDataMasker;
+import com.devbridge.server.model.BusinessException;
 import com.devbridge.server.ai.tool.gateway.ToolContract.CallRequest;
 import com.devbridge.server.ai.tool.gateway.ToolContract.CallResult;
 import com.devbridge.server.ai.tool.gateway.ToolContract.CallStatus;
@@ -356,14 +357,23 @@ public class ToolExecutionPipeline {
      * @return 失败结果
      */
     private CallResult failure(CallRequest request, RiskDecision decision, RuntimeException error) {
+        String code = "TOOL_EXECUTION_FAILED";
+        String message = "工具执行失败";
+        String diagnostic = error.getMessage();
+        if (error instanceof BusinessException business) {
+            // 业务异常已经定义了稳定错误语义，不能在 Gateway 中降级成无法诊断的通用错误。
+            code = business.getErrorCode();
+            message = business.getMessage();
+            diagnostic = business.getDetail();
+        }
         Error detail = new Error(
-                "TOOL_EXECUTION_FAILED",
+                code,
                 ErrorCategory.EXECUTION,
-                "工具执行失败",
-                masker.maskText(error.getMessage()),
+                masker.maskText(message),
+                masker.maskText(diagnostic),
                 false,
                 false);
-        return result(request, decision, CallStatus.FAILED, null, "工具执行失败", detail, false);
+        return result(request, decision, CallStatus.FAILED, null, detail.message(), detail, false);
     }
 
     /**

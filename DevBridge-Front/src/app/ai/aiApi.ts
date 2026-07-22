@@ -27,6 +27,9 @@ import {
   AgentTaskResult,
   AgentTaskStatus,
   AgentTrace,
+  WebSearchConfigDetail,
+  WebSearchConfigRequest,
+  WebSearchConnectionTestResult,
 } from "./aiTypes";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8080";
@@ -94,6 +97,27 @@ export async function testConfig(request: AiConfigRequest): Promise<AiConnection
  */
 export async function fetchModelList(request: AiModelListRequest): Promise<AiModelListResponse> {
   return requestJson<AiModelListResponse>("/api/ai/config/models", {
+    method: "POST",
+    body: JSON.stringify(request),
+  });
+}
+
+/** 获取全局网络检索配置。 */
+export async function getWebSearchConfig(): Promise<WebSearchConfigDetail> {
+  return requestJson<WebSearchConfigDetail>("/api/ai/config/web-search?revealApiKey=true", { method: "GET" });
+}
+
+/** 保存全局网络检索配置。 */
+export async function saveWebSearchConfig(request: WebSearchConfigRequest): Promise<WebSearchConfigDetail> {
+  return requestJson<WebSearchConfigDetail>("/api/ai/config/web-search", {
+    method: "PUT",
+    body: JSON.stringify(request),
+  });
+}
+
+/** 使用临时 Tavily 配置测试网络搜索。 */
+export async function testWebSearchConfig(request: WebSearchConfigRequest): Promise<WebSearchConnectionTestResult> {
+  return requestJson<WebSearchConnectionTestResult>("/api/ai/config/web-search/test", {
     method: "POST",
     body: JSON.stringify(request),
   });

@@ -155,7 +155,7 @@ class AiConversationServiceTest {
      * 验证普通设备问题不会暴露本机 Shell 工具，降低模型误操作宿主机风险。
      */
     @Test
-    void resolveToolScopeShouldKeepAdbScopeForDeviceQuestion() {
+    void resolveToolScopeShouldUseGeneralAssistantForDeviceQuestion() {
         AiConversationService service = new AiConversationService(null, null, null, null, null, null, null, null);
         AiChatRequest request = new AiChatRequest(
                 "查询当前连接设备安装的应用",
@@ -163,7 +163,7 @@ class AiConversationServiceTest {
                 "conversation-1",
                 List.of());
 
-        assertThat(service.resolveToolScope(request)).isEqualTo(AiToolScope.ADB_DEVICE_MANAGEMENT);
+        assertThat(service.resolveToolScope(request)).isEqualTo(AiToolScope.GENERAL_ASSISTANT);
     }
 
     /**
@@ -179,6 +179,25 @@ class AiConversationServiceTest {
                 List.of());
 
         assertThat(service.resolveToolScope(request)).isEqualTo(AiToolScope.LOCAL_DEVELOPMENT);
+    }
+
+    /** 普通问题不依赖关键词分类，统一由模型在通用工具范围内自主选择工具。 */
+    @Test
+    void resolveToolScopeShouldNotDependOnWebKeywords() {
+        AiConversationService service = new AiConversationService(null, null, null, null, null, null, null, null);
+        AiChatRequest documentRequest = new AiChatRequest(
+                "搜索一下华为最新官方文档并给出来源",
+                null,
+                "conversation-1",
+                List.of());
+        AiChatRequest weatherRequest = new AiChatRequest(
+                "今天成都天气怎么样？",
+                null,
+                "conversation-2",
+                List.of());
+
+        assertThat(service.resolveToolScope(documentRequest)).isEqualTo(AiToolScope.GENERAL_ASSISTANT);
+        assertThat(service.resolveToolScope(weatherRequest)).isEqualTo(AiToolScope.GENERAL_ASSISTANT);
     }
 
     /**

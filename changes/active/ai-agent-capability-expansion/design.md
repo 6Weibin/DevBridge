@@ -1,5 +1,35 @@
 # M2.5 AI 架构收敛设计
 
+## 2026-07-22 Delta：网络检索工具设计
+
+### 技术设计
+
+- 新增全局 `WebSearchConfigService`，单独使用加密本地文件保存 Tavily 配置，不修改模型 Provider 配置语义。
+- 新增一个 `WebSearchToolAdapter`，提供 `web.search` 和 `web.fetch`，注册后自动进入现有 Tool Registry、Spring AI ToolCallback 和标准 MCP Server。
+- `web.search` 使用 JDK `HttpClient` 调用 Tavily JSON API；`web.fetch` 使用同一客户端抓取页面并通过 Jsoup 提取正文。
+- URL 安全校验放在独立的小型校验器中，执行 DNS/IP 检查并禁止重定向到本机、私网和 Metadata 地址。
+- 搜索结果和网页正文按 Tool Contract 返回；正文上限 50,000 字符，HTTP 响应体上限 2MB，默认超时 10 秒。
+- 普通对话使用 `GENERAL_ASSISTANT` 工具范围，同时提供设备与网络工具，由主模型通过 Tool Calling 自主选择；结构化 Router 不解析自然语言关键字，也不建立新的 Agent 类型。
+- 前端 AI 配置增加“网络检索”菜单，独立加载、测试和保存；现有工具卡片复用工具元数据显示标题和参数摘要。
+
+### 阶段任务
+
+- [x] W1：实现网络检索配置、加密存储和连接测试。
+- [x] W2：实现 `web.search`、`web.fetch`、正文提取和 URL 安全边界。
+- [x] W3：接入 Tool Gateway、Router、Agent Prompt 和来源引用约束。
+- [x] W4：完成前端配置和工具展示。
+- [x] W5：完成精简测试、构建和 Electron 验收。
+
+### 验收结果
+
+- [x] Tavily 配置独立于模型 Provider，API Key 使用现有 `AiConfigCrypto` 加密保存。
+- [x] `web.search` 和 `web.fetch` 统一经过 Tool Gateway、取消、审计和不可信内容隔离链路。
+- [x] 网页读取仅允许 HTTP/HTTPS 公网地址，每次重定向重新校验，响应体和正文均有明确上限。
+- [x] AI 配置页可启用、测试和保存网络检索，工具卡片显示网络搜索和网页读取的业务语义。
+- [x] 后端 334 个测试通过，前端生产构建和后端打包通过，MCP 注册 66 个工具。
+- [x] 使用不含既有网络关键词的“成都现在出门需要带伞吗？”完成端到端验证，模型自主调用 `web.search` 并引用真实来源。
+- [x] 未引入新的 Agent Runtime、工作流引擎、数据库、浏览器自动化或多搜索 Provider 抽象。
+
 ## 2026-07-21 Delta：直接执行收敛
 
 ### 技术设计

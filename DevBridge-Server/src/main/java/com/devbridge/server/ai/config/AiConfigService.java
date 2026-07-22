@@ -503,7 +503,7 @@ public class AiConfigService {
      * @return 有界用户偏好
      */
     private String normalizeUserPreference(String value) {
-        if (!StringUtils.hasText(value) || AiPromptDefaults.DEFAULT_SYSTEM_PROMPT.equals(value.trim())) {
+        if (!StringUtils.hasText(value) || isProductDefaultPrompt(value.trim())) {
             return AiPromptDefaults.DEFAULT_USER_PREFERENCE_PROMPT;
         }
         String prompt = value.trim();
@@ -511,6 +511,13 @@ public class AiConfigService {
             throw invalid("用户偏好提示词长度不能超过 " + MAX_USER_PREFERENCE_PROMPT_LENGTH + " 个字符", "");
         }
         return prompt;
+    }
+
+    /** 识别当前和旧版产品默认提示词，避免版本升级后把旧默认值当成用户偏好继续注入。 */
+    private boolean isProductDefaultPrompt(String value) {
+        return AiPromptDefaults.DEFAULT_SYSTEM_PROMPT.equals(value)
+                || (value.startsWith("你是 Ai DevBridge 本机设备管理工具中的 Bridge Copilot。")
+                && value.contains("当前未提供互联网检索工具"));
     }
 
     /**

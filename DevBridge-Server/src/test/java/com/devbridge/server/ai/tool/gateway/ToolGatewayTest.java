@@ -48,6 +48,7 @@ import com.devbridge.server.ai.tool.gateway.ToolContract.SourceKind;
 import com.devbridge.server.ai.tool.gateway.ToolContract.Timing;
 import com.devbridge.server.ai.tool.gateway.ToolContract.ToolReference;
 import com.devbridge.server.ai.tool.gateway.ToolContract.WorkflowAuthorization;
+import com.devbridge.server.model.BusinessException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -58,6 +59,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.tool.ToolCallback;
 
@@ -83,6 +85,28 @@ class ToolGatewayTest {
         assertThat(result.status()).isEqualTo(CallStatus.SUCCEEDED);
         assertThat(result.payload().output().path("text").asText()).doesNotContain("secret-value");
         assertThat(adapter.executions).hasValue(1);
+    }
+
+    /** 业务异常经过 Gateway 后必须保留稳定错误码和可诊断信息。 */
+    @Test
+    void callShouldPreserveBusinessFailure() {
+        FakeAdapter adapter = new FakeAdapter(
+                definition(RiskLevel.LOW), decision(RiskLevel.LOW, RiskAction.ALLOW)) {
+            /** 模拟网络检索未配置。 */
+            @Override
+            public CallResult execute(CallRequest request, Definition value, RiskDecision risk) {
+                throw new BusinessException(
+                        "WEB_SEARCH_NOT_CONFIGURED", "网络检索尚未启用",
+                        HttpStatus.CONFLICT, "请在 AI 配置中启用并保存 Tavily 配置");
+            }
+        };
+
+        CallResult result = gateway(adapter).call(
+                request(Platform.MACOS, objectMapper.createObjectNode().put("query", "成都天气")));
+
+        assertThat(result.status()).isEqualTo(CallStatus.FAILED);
+        assertThat(result.diagnostics().error().code()).isEqualTo("WEB_SEARCH_NOT_CONFIGURED");
+        assertThat(result.diagnostics().error().detail()).contains("Tavily");
     }
 
     /** 旧 REST 参数变化必须形成不同任务目标，后续由任务服务按 requestId 拒绝冲突。 */
@@ -238,6 +262,41 @@ class ToolGatewayTest {
         assertThat(published.get().status().name()).isEqualTo("SUCCESS");
         assertThat(published.get().toolTitle()).isEqualTo("测试查询");
         assertThat(result).contains("UNTRUSTED_CONTENT_ENVELOPE");
+    }
+
+    /** Chat 工具结果必须把业务失败原因同时交给模型和前端卡片。 */
+    @Test
+    void aiToolRegistryShouldExposeBusinessFailureDetails() {
+        FakeChatToolGateway gateway = new FakeChatToolGateway(false) {
+            /** 返回网络检索未配置的明确失败。 */
+            @Override
+            public CallResult call(CallRequest request) {
+                CallResult base = super.call(request);
+                ToolContract.Error error = new ToolContract.Error(
+                        "WEB_SEARCH_NOT_CONFIGURED", ToolContract.ErrorCategory.EXECUTION,
+                        "网络检索尚未启用", "请在 AI 配置中启用并保存 Tavily 配置", false, false);
+                return new CallResult(
+                        base.schemaVersion(), base.tool(), base.toolCallId(), CallStatus.FAILED,
+                        base.riskDecision(), base.timing(),
+                        new ResultPayload(null, error.message(), List.of()),
+                        new Diagnostics(error, new Exit(null, false),
+                                new Metrics(0, 0, 0, 0), new SideEffect(false, false, false)));
+            }
+        };
+        AiMcpToolEventPublisher publisher = new AiMcpToolEventPublisher();
+        AtomicReference<AdbMcpToolResult> published = new AtomicReference<>();
+        publisher.register("conversation-web", published::set);
+        AiToolRegistry registry = new AiToolRegistry(
+                gateway, publisher, objectMapper, new AiUntrustedContentService(), null);
+
+        String result = registry.toolCallbacks(AiToolScope.LOCAL_DEVELOPMENT, Platform.MACOS).get(0)
+                .call("{\"query\":\"成都天气\"}",
+                        new ToolContext(toolContext("conversation-web", "task-web", "")));
+
+        assertThat(published.get().errorCode()).isEqualTo("WEB_SEARCH_NOT_CONFIGURED");
+        assertThat(published.get().message()).isEqualTo("网络检索尚未启用");
+        assertThat(published.get().stderr()).contains("Tavily");
+        assertThat(result).contains("Tavily");
     }
 
     /**

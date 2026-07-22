@@ -9,6 +9,7 @@ public enum AiToolScope {
     NONE,
     LOG_ANALYSIS,
     ADB_DEVICE_MANAGEMENT,
+    GENERAL_ASSISTANT,
     LOCAL_SHELL,
     LOCAL_DEVELOPMENT
 }

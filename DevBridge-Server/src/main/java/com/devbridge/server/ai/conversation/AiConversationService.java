@@ -1611,9 +1611,8 @@ public class AiConversationService {
      * @return 后续工具范围
      */
     private AiToolScope continuationScope(String toolId) {
-        return toolId != null && toolId.startsWith("desktop.")
-                ? AiToolScope.LOCAL_DEVELOPMENT
-                : AiToolScope.ADB_DEVICE_MANAGEMENT;
+        if (toolId != null && toolId.startsWith("desktop.")) return AiToolScope.LOCAL_DEVELOPMENT;
+        return AiToolScope.GENERAL_ASSISTANT;
     }
 
     /**
@@ -1851,13 +1850,15 @@ public class AiConversationService {
     }
 
     /**
-     * 根据用户意图选择工具范围；本机 Shell 风险较高，只在用户明确要求本机能力时暴露。
+     * 普通对话同时提供设备和网络工具，由模型根据语义自主决定是否调用。
+     * 本机 Shell 能力范围更大，仍只在用户明确要求本机操作时暴露。
      *
      * @param request 对话请求
      * @return 工具范围
      */
     AiToolScope resolveToolScope(AiChatRequest request) {
-        return localShellIntent(request) ? AiToolScope.LOCAL_DEVELOPMENT : AiToolScope.ADB_DEVICE_MANAGEMENT;
+        if (localShellIntent(request)) return AiToolScope.LOCAL_DEVELOPMENT;
+        return AiToolScope.GENERAL_ASSISTANT;
     }
 
     /**

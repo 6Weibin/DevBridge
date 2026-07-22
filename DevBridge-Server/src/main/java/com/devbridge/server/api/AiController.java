@@ -22,6 +22,11 @@ import com.devbridge.server.ai.provider.AiProviderGateway;
 import com.devbridge.server.ai.provider.AiModelListResponse;
 import com.devbridge.server.ai.provider.AiProviderRequest;
 import com.devbridge.server.ai.provider.AiProviderResponse;
+import com.devbridge.server.ai.web.WebSearchClient;
+import com.devbridge.server.ai.web.WebSearchClient.SearchRequest;
+import com.devbridge.server.ai.web.WebSearchConfigService;
+import com.devbridge.server.ai.web.WebSearchConfigService.WebSearchConfigDetail;
+import com.devbridge.server.ai.web.WebSearchConfigService.WebSearchConfigRequest;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -54,6 +59,8 @@ public class AiController {
     private final AiConversationService conversationService;
     private final AiConversationStoreService conversationStoreService;
     private final AiLogAnalysisService logAnalysisService;
+    private final WebSearchConfigService webSearchConfigService;
+    private final WebSearchClient webSearchClient;
 
     /**
      * 注入 AI 接口依赖。
@@ -63,18 +70,24 @@ public class AiController {
      * @param conversationService 普通对话服务
      * @param conversationStoreService 历史聊天本地文件服务
      * @param logAnalysisService 日志分析服务
+     * @param webSearchConfigService 网络检索配置服务
+     * @param webSearchClient 网络检索客户端
      */
     public AiController(
             AiConfigService configService,
             AiProviderGateway providerGateway,
             AiConversationService conversationService,
             AiConversationStoreService conversationStoreService,
-            AiLogAnalysisService logAnalysisService) {
+            AiLogAnalysisService logAnalysisService,
+            WebSearchConfigService webSearchConfigService,
+            WebSearchClient webSearchClient) {
         this.configService = configService;
         this.providerGateway = providerGateway;
         this.conversationService = conversationService;
         this.conversationStoreService = conversationStoreService;
         this.logAnalysisService = logAnalysisService;
+        this.webSearchConfigService = webSearchConfigService;
+        this.webSearchClient = webSearchClient;
     }
 
     /**
@@ -143,6 +156,30 @@ public class AiController {
         return providerGateway.listModels(configService.runtimeForModelList(request));
     }
 
+    /** 获取网络检索配置，明文密钥响应禁止缓存。 */
+    @GetMapping("/config/web-search")
+    public WebSearchConfigDetail webSearchConfig(
+            @RequestParam(defaultValue = "false") boolean revealApiKey,
+            HttpServletResponse response) {
+        response.setHeader("Cache-Control", "no-store, max-age=0");
+        response.setHeader("Pragma", "no-cache");
+        return webSearchConfigService.detail(revealApiKey);
+    }
+
+    /** 保存独立的网络检索配置。 */
+    @PutMapping("/config/web-search")
+    public WebSearchConfigDetail saveWebSearchConfig(@RequestBody WebSearchConfigRequest request) {
+        return webSearchConfigService.save(request);
+    }
+
+    /** 使用临时配置执行最小 Tavily 搜索测试，不覆盖已保存配置。 */
+    @PostMapping("/config/web-search/test")
+    public WebSearchConnectionTestResult testWebSearchConfig(@RequestBody WebSearchConfigRequest request) {
+        var result = webSearchClient.search(
+                webSearchConfigService.runtimeFrom(request), new SearchRequest("Android developer documentation", 1));
+        return new WebSearchConnectionTestResult(true, "网络检索连接测试通过", result.results().size());
+    }
+
     /**
      * 发起普通 AI 对话。
      *
@@ -154,6 +191,10 @@ public class AiController {
             @RequestBody AiChatRequest request,
             @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey) {
         return conversationService.chat(request, idempotencyKey);
+    }
+
+    /** 网络检索连接测试响应。by AI.Coding */
+    public record WebSearchConnectionTestResult(boolean available, String message, int resultCount) {
     }
 
     /**

@@ -59,6 +59,25 @@ export interface AiModelListResponse {
   models: string[];
 }
 
+export interface WebSearchConfigRequest {
+  enabled: boolean;
+  apiUrl: string;
+  apiKey: string;
+  defaultResultCount: number;
+}
+
+export interface WebSearchConfigDetail extends WebSearchConfigRequest {
+  configured: boolean;
+  provider: string;
+  updatedAt: string | null;
+}
+
+export interface WebSearchConnectionTestResult {
+  available: boolean;
+  message: string;
+  resultCount: number;
+}
+
 export interface AiDeviceContext {
   platform: string;
   serial: string;

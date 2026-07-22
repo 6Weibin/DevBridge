@@ -5,6 +5,8 @@
   "private": true,
   "main": "src/main.js",
   "scripts": {
+    "postinstall": "node scripts/prepare-electron-runtime.js",
+    "prestart": "node scripts/prepare-electron-runtime.js",
     "build:front": "npm --prefix ../DevBridge-Front run build",
     "build:server": "mvn -f ../DevBridge-Server/pom.xml -DskipTests package",
     "prepare:resources": "node scripts/prepare-resources.js",
@@ -18,7 +20,7 @@
     "productName": "Ai DevBridge",
     "asar": true,
     "electronDist": "node_modules/electron/dist",
-    "electronVersion": "31.7.7",
+    "electronVersion": "43.2.0",
     "files": [
       "src/**/*",
       "package.json"
@@ -48,7 +50,7 @@
     }
   },
   "devDependencies": {
-    "electron": "^31.7.7",
-    "electron-builder": "^24.13.3"
+    "electron": "^43.2.0",
+    "electron-builder": "^26.15.3"
   }
 }
