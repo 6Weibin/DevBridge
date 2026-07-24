@@ -90,7 +90,7 @@ public class AgentTaskService {
             throw new IllegalArgumentException("创建任务命令不能为空");
         }
         String conversationId = required(command.conversationId(), "会话标识不能为空");
-        String goal = sensitiveDataMasker.maskText(required(command.goal(), "任务目标不能为空"));
+        String goal = sensitiveDataMasker.protectCredentials(required(command.goal(), "任务目标不能为空"));
         String idempotencyKey = optional(command.idempotencyKey());
         validateLength(conversationId, MAX_CONVERSATION_ID_LENGTH, "会话标识");
         validateLength(goal, MAX_GOAL_LENGTH, "任务目标");

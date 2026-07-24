@@ -98,6 +98,8 @@ export interface AiChatRequest {
   message: string;
   deviceContext: AiDeviceContext | null;
   conversationId: string;
+  /** 当前发送是否允许模型使用联网工具；输入区默认关闭。 */
+  webSearchEnabled: boolean;
   /** 普通请求固定为空；确认恢复由后端处理，历史正文不再由前端回传。 */
   history: AiChatHistoryMessage[];
 }

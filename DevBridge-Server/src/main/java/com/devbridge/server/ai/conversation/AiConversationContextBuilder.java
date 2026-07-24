@@ -152,13 +152,13 @@ public class AiConversationContextBuilder {
     }
 
     /**
-     * 对当前问题、错误摘要和任务目标复用统一脱敏规则。
+     * 对当前问题、错误摘要和任务目标仅执行认证凭据保护。
      *
      * @param text 原始文本
-     * @return 脱敏文本
+     * @return 保留业务数据并隐藏认证凭据的文本
      */
-    public String maskText(String text) {
-        return sensitiveDataMasker.maskText(text);
+    public String protectCredentials(String text) {
+        return sensitiveDataMasker.protectCredentials(text);
     }
 
     /**
@@ -270,7 +270,7 @@ public class AiConversationContextBuilder {
      * 对 RAG 证据执行脱敏和 Token 限制。
      */
     private RagSelection limitRag(String content, List<String> citations, int tokenBudget) {
-        String masked = sensitiveDataMasker.maskText(content == null ? "" : content.trim());
+        String masked = sensitiveDataMasker.protectCredentials(content == null ? "" : content.trim());
         int tokens = estimateTokens(masked);
         if (tokens <= tokenBudget) {
             return new RagSelection(masked, citations, tokens, false);
@@ -288,7 +288,7 @@ public class AiConversationContextBuilder {
         if (summary == null || !StringUtils.hasText(summary.content()) || tokenBudget <= 0) {
             return new SummarySelection("", 0, StringUtils.hasText(summary == null ? "" : summary.content()));
         }
-        String content = sensitiveDataMasker.maskText(summary.content().trim());
+        String content = sensitiveDataMasker.protectCredentials(summary.content().trim());
         int tokens = estimateTokens(content);
         if (tokens <= tokenBudget) {
             return new SummarySelection(content, tokens, false);
@@ -334,7 +334,7 @@ public class AiConversationContextBuilder {
                     && "text".equals(kind) && !message.path("error").asBoolean(false)
                     && StringUtils.hasText(content)) {
                 values.add(new AiChatHistoryMessage(
-                        role, sensitiveDataMasker.maskText(content.trim())));
+                        role, sensitiveDataMasker.protectCredentials(content.trim())));
             }
         }
         return List.copyOf(values);
@@ -377,7 +377,7 @@ public class AiConversationContextBuilder {
                 .filter(item -> item != null && StringUtils.hasText(item.content()))
                 .filter(item -> "user".equals(item.role()) || "assistant".equals(item.role()))
                 .map(item -> new AiChatHistoryMessage(
-                        item.role(), sensitiveDataMasker.maskText(item.content().trim())))
+                        item.role(), sensitiveDataMasker.protectCredentials(item.content().trim())))
                 .toList();
     }
 

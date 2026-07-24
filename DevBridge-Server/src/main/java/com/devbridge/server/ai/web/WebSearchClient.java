@@ -220,7 +220,7 @@ public class WebSearchClient {
 
     /** 搜索查询脱敏并限制长度。 */
     private String normalizedQuery(String query) {
-        String value = masker.maskText(query == null ? "" : query).trim();
+        String value = masker.protectCredentials(query == null ? "" : query).trim();
         if (!StringUtils.hasText(value)) throw new IllegalArgumentException("搜索关键词不能为空");
         return value.length() <= 500 ? value : value.substring(0, 500);
     }

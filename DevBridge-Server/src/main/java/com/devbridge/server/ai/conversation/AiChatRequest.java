@@ -15,6 +15,7 @@ import java.util.List;
  * @param confirmationToken 后端确认续跑使用的原工具调用身份，外部普通请求为空
  * @param summaryContext 确认恢复使用的较早历史摘要，普通前端请求为空
  * @param ragContext 确认恢复使用的本地知识引用，普通前端请求为空
+ * @param webSearchEnabled 当前请求是否允许模型使用联网工具，缺省为关闭
  */
 public record AiChatRequest(
         String message,
@@ -24,7 +25,8 @@ public record AiChatRequest(
         String taskId,
         String confirmationToken,
         SummaryContext summaryContext,
-        RagContext ragContext) {
+        RagContext ragContext,
+        boolean webSearchEnabled) {
 
     /**
      * 兼容旧前端请求，历史和任务标识为空时按新的普通对话处理。
@@ -60,7 +62,7 @@ public record AiChatRequest(
             AiDeviceContext deviceContext,
             String conversationId,
             List<AiChatHistoryMessage> history) {
-        this(message, deviceContext, conversationId, history, "", "", SummaryContext.empty(), RagContext.empty());
+        this(message, deviceContext, conversationId, history, "", "", SummaryContext.empty(), RagContext.empty(), false);
     }
 
     /**
@@ -78,7 +80,7 @@ public record AiChatRequest(
             String conversationId,
             List<AiChatHistoryMessage> history,
             String taskId) {
-        this(message, deviceContext, conversationId, history, taskId, "", SummaryContext.empty(), RagContext.empty());
+        this(message, deviceContext, conversationId, history, taskId, "", SummaryContext.empty(), RagContext.empty(), false);
     }
 
     /**
@@ -99,7 +101,7 @@ public record AiChatRequest(
             String taskId,
             String confirmationToken) {
         this(message, deviceContext, conversationId, history,
-                taskId, confirmationToken, SummaryContext.empty(), RagContext.empty());
+                taskId, confirmationToken, SummaryContext.empty(), RagContext.empty(), false);
     }
 
     /**
@@ -122,7 +124,32 @@ public record AiChatRequest(
             String confirmationToken,
             SummaryContext summaryContext) {
         this(message, deviceContext, conversationId, history, taskId, confirmationToken,
-                summaryContext, RagContext.empty());
+                summaryContext, RagContext.empty(), false);
+    }
+
+    /**
+     * 兼容尚未传入请求级联网开关的完整 Java 调用方。
+     *
+     * @param message 用户问题
+     * @param deviceContext 设备上下文
+     * @param conversationId 会话标识
+     * @param history 对话历史
+     * @param taskId Agent Task ID
+     * @param confirmationToken 确认身份
+     * @param summaryContext 较早摘要
+     * @param ragContext RAG 上下文
+     */
+    public AiChatRequest(
+            String message,
+            AiDeviceContext deviceContext,
+            String conversationId,
+            List<AiChatHistoryMessage> history,
+            String taskId,
+            String confirmationToken,
+            SummaryContext summaryContext,
+            RagContext ragContext) {
+        this(message, deviceContext, conversationId, history, taskId, confirmationToken,
+                summaryContext, ragContext, false);
     }
 
     /**

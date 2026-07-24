@@ -4,7 +4,7 @@
  * by AI.Coding
  */
 import React, { useEffect, useRef, useState } from "react";
-import { Activity, ArrowDown, Bot, Maximize2, Minimize2, Play, Send, Settings, Square, Terminal, X } from "lucide-react";
+import { Activity, ArrowDown, ArrowUp, Globe2, Loader2, Maximize2, Minimize2, Play, Settings, Square, Terminal, X } from "lucide-react";
 import {
   analyzeLogs,
   approveAdbConfirmation,
@@ -16,11 +16,13 @@ import {
   deleteStoredConversation,
   getConversation,
   getAgentTaskResult,
+  getWebSearchConfig,
   isAgentConfirmationToken,
   listConversations,
   migrateConversations,
   rejectAgentConfirmation,
   saveConversation,
+  saveWebSearchConfig,
   submitAgentInput,
 } from "./aiApi";
 import { AiConversationHistory, AiHomePanel, AiMessageBubble, AiProcessCard, AiThinkingIcon, AiTracePanel } from "./AiChatViews";
@@ -35,18 +37,23 @@ import { AdbMcpToolResult, AiChatHistoryMessage, AiConfigStatus, AiConversationD
 
 interface AiChatPanelProps {
   open: boolean;
+  visible: boolean;
   configStatus: AiConfigStatus | null;
   device: AiDeviceContext | null;
   streaming: boolean;
   getRecentLogs: () => AiLogLine[];
   onStartLogCapture: () => void;
   onOpenConfig: () => void;
+  onOpenNetworkConfig: () => void;
+  webSearchEnabled: boolean;
+  onWebSearchEnabledChange: (enabled: boolean) => void;
   onClose: () => void;
 }
 
 let nextMessageId = 1;
 // 约 12 FPS 刷新流式尾段，保持连续输出并为 Markdown 和自动滚动预留主线程预算。
 const STREAM_FLUSH_INTERVAL_MS = 80;
+const FINAL_RESPONSE_MARKER = "<DEVBRIDGE_FINAL>";
 const ASSISTANT_DISPLAY_NAME = "Bridge Copilot";
 const ASSISTANT_HOME_TITLE = `您好，我是${ASSISTANT_DISPLAY_NAME}你的手机智能助手，有什么我能帮你的吗？`;
 const CONVERSATION_STORAGE_KEY = "devbridge.ai.conversations.v1";
@@ -122,7 +129,7 @@ async function waitForPersistedTaskResult(taskId: string, signal: AbortSignal) {
 /**
  * 渲染 AI 对话与日志分析侧边栏。
  */
-export function AiChatPanel({ open, configStatus, device, streaming, getRecentLogs, onStartLogCapture, onOpenConfig, onClose }: AiChatPanelProps) {
+export function AiChatPanel({ open, visible, configStatus, device, streaming, getRecentLogs, onStartLogCapture, onOpenConfig, onOpenNetworkConfig, webSearchEnabled, onWebSearchEnabledChange, onClose }: AiChatPanelProps) {
   const [initialConversationStore] = useState(createInitialConversationStore);
   const [conversations, setConversations] = useState<AiConversationSession[]>(initialConversationStore.conversations);
   const [activeConversationId, setActiveConversationId] = useState(initialConversationStore.activeConversationId);
@@ -138,6 +145,8 @@ export function AiChatPanel({ open, configStatus, device, streaming, getRecentLo
   const [waitingInput, setWaitingInput] = useState<{ taskId: string; inputKey: string } | null>(null);
   const [hint, setHint] = useState("");
   const [confirming, setConfirming] = useState(false);
+  const [checkingWebSearch, setCheckingWebSearch] = useState(false);
+  const [webSearchPromptOpen, setWebSearchPromptOpen] = useState(false);
   const [streamingMessageId, setStreamingMessageId] = useState<number | null>(null);
   const [historyMenu, setHistoryMenu] = useState<{ conversationId: string; x: number; y: number } | null>(null);
   const conversationIdRef = useRef(initialConversationStore.activeConversationId);
@@ -145,6 +154,29 @@ export function AiChatPanel({ open, configStatus, device, streaming, getRecentLo
   const conversationsRef = useRef(initialConversationStore.conversations);
   const conversationSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const submittingRef = useRef(false);
+
+  /** 切换智能联网搜索；开启前确认 Tavily URL 和 Key 均已配置。 */
+  const toggleWebSearch = async () => {
+    setCheckingWebSearch(true);
+    try {
+      const detail = await getWebSearchConfig();
+      if (!detail.configured || !detail.apiUrl.trim() || !detail.apiKey.trim()) {
+        setWebSearchPromptOpen(true);
+        return;
+      }
+      const saved = await saveWebSearchConfig({
+        enabled: !webSearchEnabled,
+        apiUrl: detail.apiUrl,
+        apiKey: detail.apiKey,
+        defaultResultCount: detail.defaultResultCount,
+      });
+      onWebSearchEnabledChange(saved.enabled);
+    } catch (error) {
+      setHint(error instanceof Error ? error.message : "Tavily 配置读取失败");
+    } finally {
+      setCheckingWebSearch(false);
+    }
+  };
 
   /** 追加一条消息并集中维护消息 ID。 */
   const append = (role: AiMessage["role"], content: string) => {
@@ -204,8 +236,11 @@ export function AiChatPanel({ open, configStatus, device, streaming, getRecentLo
     resetAutoScroll,
     returnToChatBottom,
   } = useAiChatLayout({ open, input, hint, loading, messages, onClose });
-  // 标题区只保留两行：助手名称和模型信息同一行，设备信息单独一行。
-  const modelLabel = configStatus?.configured ? `${configStatus.provider} / ${configStatus.model}` : "未配置";
+  // 助手身份、模型和设备信息统一显示在历史聊天栏顶部。
+  // 工具区统一使用“厂商/模型”格式，英文转为大写以便快速识别当前模型。
+  const modelLabel = configStatus?.configured
+    ? `${configStatus.provider}/${configStatus.model}`.toUpperCase()
+    : "未配置模型";
   // 快捷操作入口先保留代码但默认隐藏，后续明确交互场景后再开放。
   const showQuickActions = false;
   // 设备上下文已经移到输入框下方，旧顶部区域保留但默认隐藏。
@@ -217,6 +252,7 @@ export function AiChatPanel({ open, configStatus, device, streaming, getRecentLo
     { label: "系统", value: device.osVersion },
   ] : [];
   const visibleMessages = visibleConversationMessages(messages);
+  const hasActiveProcess = visibleMessages.some(message => message.kind === "process" && message.process?.active);
   const showHome = visibleMessages.length === 0 && !loading && !conversationListLoading;
 
   /**
@@ -596,13 +632,56 @@ export function AiChatPanel({ open, configStatus, device, streaming, getRecentLo
         kind: "process",
         process: {
           active: true,
-          expanded: true,
+          expanded: false,
           startedAt: Date.now(),
           entries,
         },
       });
     }));
     return messageId;
+  };
+
+  /**
+   * 把后续工具调用前的模型说明并入既有过程，避免过程文本被误当成独立最终回复。
+   */
+  const mergeAssistantIntoProcess = (processId: number, assistantMessageId: number) => {
+    setMessages(current => {
+      const assistant = current.find(message => message.id === assistantMessageId);
+      const processMessage = current.find(message => message.id === processId && message.process);
+      if (!assistant || !processMessage?.process) return current;
+      const visibleContent = materializeContent(assistant.content, assistant.contentSegments).trim();
+      return current
+        .filter(message => message.id !== assistantMessageId)
+        .map(message => {
+          if (message.id !== processId || !message.process || !visibleContent) return message;
+          return sanitizeMessageForState({
+            ...message,
+            process: {
+              ...message.process,
+              entries: message.process.entries.concat(thoughtEntry(visibleContent)),
+            },
+          });
+        });
+    });
+  };
+
+  /**
+   * 把模型最终回复标记前的可观察文本追加到思考过程，不进入普通回复区域。
+   */
+  const appendProcessThought = (processId: number, content: string) => {
+    const detail = content.trim();
+    if (!detail) return;
+    setMessages(current => current.map(message => (
+      message.id === processId && message.process
+        ? sanitizeMessageForState({
+            ...message,
+            process: {
+              ...message.process,
+              entries: message.process.entries.concat(thoughtEntry(detail)),
+            },
+          })
+        : message
+    )));
   };
 
   /**
@@ -615,7 +694,7 @@ export function AiChatPanel({ open, configStatus, device, streaming, getRecentLo
       role: "assistant",
       content: "",
       kind: "process",
-      process: { active: true, expanded: true, startedAt: Date.now(), entries: [thoughtEntry(processInitialDetail(taskDetail))] },
+      process: { active: true, expanded: false, startedAt: Date.now(), entries: [thoughtEntry(processInitialDetail(taskDetail))] },
     })]);
     return id;
   };
@@ -635,6 +714,10 @@ export function AiChatPanel({ open, configStatus, device, streaming, getRecentLo
         ...message,
         process: {
           ...message.process,
+          // 普通过程保持折叠；只有必须由用户处理的等待状态才自动展开操作入口。
+          expanded: message.process.expanded
+            || result.confirmationRequired
+            || result.errorCode === "AI_INPUT_REQUIRED",
           entries: entries.concat(toolDecisionEntry(result), toolEntry(result)),
         },
       });
@@ -717,6 +800,34 @@ export function AiChatPanel({ open, configStatus, device, streaming, getRecentLo
       let toolSeen = false;
       let confirmationSeen = false;
       let waitingInputKey = "";
+      let finalPhase = false;
+      let phaseBuffer = "";
+      /** 把已确认的最终正文送入现有平滑流式渲染管线。 */
+      const queueFinalContent = (content: string) => {
+        if (!content) return;
+        if (assistantId === null) {
+          assistantId = append("assistant", "");
+          streamingMessageIdRef.current = assistantId;
+          setStreamingMessageId(assistantId);
+        }
+        queueStreamChunk(assistantId, content);
+      };
+      /** 解析跨 chunk 的最终回复边界，标记前文本只保留为过程候选。 */
+      const consumeModelChunk = (chunk: string) => {
+        if (finalPhase) {
+          queueFinalContent(chunk);
+          return;
+        }
+        phaseBuffer += chunk;
+        const markerIndex = phaseBuffer.indexOf(FINAL_RESPONSE_MARKER);
+        if (markerIndex < 0) return;
+        const processText = phaseBuffer.slice(0, markerIndex);
+        if (processId !== null) appendProcessThought(processId, processText);
+        const finalContent = phaseBuffer.slice(markerIndex + FINAL_RESPONSE_MARKER.length);
+        phaseBuffer = "";
+        finalPhase = true;
+        queueFinalContent(finalContent);
+      };
       const startStream = streamStarter || ((
         requestSignal: AbortSignal,
         onChunk: (content: string) => void,
@@ -726,19 +837,12 @@ export function AiChatPanel({ open, configStatus, device, streaming, getRecentLo
         message: text,
         deviceContext: device,
         conversationId: conversationIdRef.current,
+        webSearchEnabled,
         history,
       }, requestSignal, onChunk, onToolEvent, onTask, idempotencyKey));
       let taskId = "";
       try {
-        await startStream(signal, chunk => {
-          if (assistantId === null) {
-            assistantId = append("assistant", "");
-            // 使用 ref 记录当前流式消息，确保异常和取消路径也能刷新缓冲内容。
-            streamingMessageIdRef.current = assistantId;
-            setStreamingMessageId(assistantId);
-          }
-          queueStreamChunk(assistantId, chunk);
-        }, event => {
+        await startStream(signal, consumeModelChunk, event => {
           toolSeen = true;
           if (typeof event.payload !== "string" && event.payload.confirmationRequired) {
             confirmationSeen = true;
@@ -746,12 +850,18 @@ export function AiChatPanel({ open, configStatus, device, streaming, getRecentLo
           if (typeof event.payload !== "string" && event.payload.errorCode === "AI_INPUT_REQUIRED") {
             waitingInputKey = inputKeyFromToolResult(event.payload);
           }
+          // 工具事件确认当前模型轮次仍属于过程；尚未出现最终标记的文本直接并入过程。
+          flushStreamChunk(assistantId);
           if (processId === null) {
-            flushStreamChunk(assistantId);
             processId = assistantId === null ? appendProcess(processDetail) : convertAssistantToProcess(assistantId, processDetail);
+          } else if (assistantId !== null) {
+            mergeAssistantIntoProcess(processId, assistantId);
           }
+          appendProcessThought(processId, phaseBuffer);
           handleToolEvent(event, processId);
-          // 工具事件进入过程后，后续模型文本应作为新的最终回复显示。
+          // 新一轮模型输出必须重新等待最终回复标记，禁止沿用上一轮阶段。
+          phaseBuffer = "";
+          finalPhase = false;
           assistantId = null;
           streamingMessageIdRef.current = null;
           setStreamingMessageId(null);
@@ -764,12 +874,26 @@ export function AiChatPanel({ open, configStatus, device, streaming, getRecentLo
         const recovered = !signal.aborted && taskId
           ? await waitForPersistedTaskResult(taskId, signal)
           : "";
-        if (!recovered) throw error;
+        if (!recovered) {
+          // 工具流程中的未完成过渡文本必须归入过程，异常时也不能残留为隐藏消息。
+          if (processId !== null && assistantId !== null) {
+            mergeAssistantIntoProcess(processId, assistantId);
+            assistantId = null;
+          }
+          throw error;
+        }
+        phaseBuffer = "";
+        finalPhase = true;
         if (assistantId === null) {
           assistantId = append("assistant", recovered);
         } else {
           updateMessage(assistantId, () => recovered);
         }
+      }
+      // 兼容未实现内部标记的 Provider：只在流完成后把剩余正文作为最终回复，不丢失业务结果。
+      if (!finalPhase && phaseBuffer) {
+        queueFinalContent(phaseBuffer);
+        phaseBuffer = "";
       }
       flushStreamChunk(assistantId);
       completeAssistantMessage(assistantId);
@@ -985,21 +1109,30 @@ export function AiChatPanel({ open, configStatus, device, streaming, getRecentLo
   const isLocalShellConfirmation = (token: string) => token.startsWith("local-");
 
   // 全屏只改变 AI 容器占位，不改变历史会话、消息流和配置服务的业务逻辑。
-  const panelClassName = fullscreen
-    ? "fixed inset-0 z-[46] isolate flex overflow-hidden border-0 bg-white shadow-2xl dark:bg-[#18181b]"
-    : "fixed inset-y-0 right-0 z-[46] isolate flex w-[760px] max-w-[calc(100vw-24px)] overflow-hidden border-l border-slate-200 bg-white shadow-2xl dark:border-[#2f3033] dark:bg-[#18181b]";
+  const panelClassName = [
+    "fixed inset-y-0 right-0 z-[46] isolate flex overflow-hidden bg-white shadow-2xl",
+    "transition-[width,max-width,transform,opacity,border-color,box-shadow] duration-300",
+    "ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none dark:bg-[#18181b]",
+    fullscreen ? "max-w-none border-0" : "max-w-[calc(100vw-24px)] border-l border-slate-200 dark:border-[#2f3033]",
+    visible
+      ? "pointer-events-auto translate-x-0 scale-100 opacity-100"
+      : fullscreen ? "pointer-events-none translate-x-0 scale-[0.985] opacity-0" : "pointer-events-none translate-x-5 scale-[0.99] opacity-0",
+  ].join(" ");
+  const panelStyle = { width: fullscreen ? "100vw" : "760px" };
   // 全屏时消息内容与输入区共用同一宽度，保证阅读视线和输入位置一致。
   const conversationContentClassName = fullscreen
-    ? "mx-auto w-[60%]"
-    : "w-full";
+    ? "mx-auto w-[60%] transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
+    : "mx-auto w-full transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none";
 
   return (
     // 只移除透底效果，不改变 AI 助手原本的分区结构和视觉层次。
-    <aside className={panelClassName}>
+    <aside className={panelClassName} style={panelStyle} aria-hidden={!visible}>
       <div className="pointer-events-none absolute inset-0 -z-10 bg-white dark:bg-[#18181b]"/>
       <AiConversationHistory
         conversations={conversations}
         activeConversationId={activeConversationId}
+        assistantName={ASSISTANT_DISPLAY_NAME}
+        deviceConnected={device?.status === "connected"}
         loading={loading || conversationListLoading}
         hasMore={conversations.length < conversationTotal}
         onNewConversation={startNewConversation}
@@ -1039,50 +1172,42 @@ export function AiChatPanel({ open, configStatus, device, streaming, getRecentLo
           onClose={() => setTraceOpen(false)}
         />
       )}
-      <div className="border-b border-slate-200 bg-gradient-to-b from-white via-slate-50 to-white px-4 py-3 shadow-[0_1px_0_rgba(255,255,255,0.90)_inset,0_8px_20px_rgba(15,23,42,0.045)] dark:border-[#2f3033] dark:from-[#202124] dark:via-[#1f2937] dark:to-[#202124] dark:shadow-[0_8px_20px_rgba(0,0,0,0.18)]">
-        <div className="flex items-center gap-3">
-          <div className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary shadow-sm">
-            <Bot size={17}/>
-            <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-background bg-emerald-500"/>
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="flex min-w-0 items-baseline gap-2 truncate text-[13px] font-semibold text-foreground">
-              <span>{ASSISTANT_DISPLAY_NAME}</span>
-              <span className="truncate rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-normal text-muted-foreground dark:border-[#2f3033] dark:bg-[#25262a]">{modelLabel}</span>
-            </p>
-            <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{device ? `${device.platform} / ${device.model}` : "未选择设备"}</p>
-          </div>
-          {/* 设置入口只打开统一配置弹窗，模型切换逻辑仍由 Shell 和后端配置服务承接。 */}
-          <button
-            type="button"
-            onClick={() => void openTrace()}
-            disabled={!currentTaskId || loading}
-            title="查看 Agent Trace"
-            className="rounded-md border border-transparent p-1.5 text-muted-foreground hover:border-slate-200 hover:bg-slate-100 hover:text-foreground disabled:opacity-35 dark:hover:border-[#2f3033] dark:hover:bg-[#25262a]"
-          >
-            <Activity size={15}/>
-          </button>
-          <button
-            type="button"
-            onClick={() => setFullscreen(current => !current)}
-            title={fullscreen ? "退出全屏" : "全屏"}
-            className="rounded-md border border-transparent p-1.5 text-muted-foreground hover:border-slate-200 hover:bg-slate-100 hover:text-foreground dark:hover:border-[#2f3033] dark:hover:bg-[#25262a]"
-          >
-            {fullscreen ? <Minimize2 size={15}/> : <Maximize2 size={15}/>}
-          </button>
-          <button
-            type="button"
-            onClick={onOpenConfig}
-            disabled={loading}
-            title="切换模型设置"
-            className="rounded-md border border-transparent p-1.5 text-muted-foreground hover:border-slate-200 hover:bg-slate-100 hover:text-foreground disabled:opacity-45 dark:hover:border-[#2f3033] dark:hover:bg-[#25262a]"
-          >
-            <Settings size={15}/>
-          </button>
-          <button onClick={onClose} className="rounded-md border border-transparent p-1.5 text-muted-foreground hover:border-slate-200 hover:bg-slate-100 hover:text-foreground dark:hover:border-[#2f3033] dark:hover:bg-[#25262a]">
-            <X size={16}/>
-          </button>
-        </div>
+      {/* 内容区工具按钮独立悬浮，不再使用横向顶部栏占用聊天高度。 */}
+      <div className="absolute right-3 top-3 z-30 flex items-center gap-0.5 rounded-md border border-slate-200 bg-white p-1 shadow-[0_6px_18px_rgba(15,23,42,0.10)] dark:border-[#343539] dark:bg-[#222327] dark:shadow-[0_6px_18px_rgba(0,0,0,0.28)]">
+        <button
+          type="button"
+          onClick={() => void openTrace()}
+          disabled={!currentTaskId || loading}
+          title="查看 Agent Trace"
+          className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-slate-100 hover:text-foreground disabled:opacity-35 dark:hover:bg-[#2d2e32]"
+        >
+          <Activity size={14}/>
+        </button>
+        <button
+          type="button"
+          onClick={() => setFullscreen(current => !current)}
+          title={fullscreen ? "退出全屏" : "全屏"}
+          className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-slate-100 hover:text-foreground dark:hover:bg-[#2d2e32]"
+        >
+          {fullscreen ? <Minimize2 size={14}/> : <Maximize2 size={14}/>}
+        </button>
+        <button
+          type="button"
+          onClick={onOpenConfig}
+          disabled={loading}
+          title="切换模型设置"
+          className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-slate-100 hover:text-foreground disabled:opacity-45 dark:hover:bg-[#2d2e32]"
+        >
+          <Settings size={14}/>
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          title="关闭"
+          className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-slate-100 hover:text-foreground dark:hover:bg-[#2d2e32]"
+        >
+          <X size={15}/>
+        </button>
       </div>
 
       {showQuickActions && (
@@ -1189,10 +1314,11 @@ export function AiChatPanel({ open, configStatus, device, streaming, getRecentLo
               <AiMessageBubble key={message.id} message={message} streaming={message.id === streamingMessageId}/>
             )
           ))}
-          {loading && (
-            <div className="mr-8 flex items-center gap-2 px-1 py-1 text-[12px] text-muted-foreground">
+          {loading && !hasActiveProcess && (
+            <div className="mr-8 flex min-w-0 items-center gap-2 px-1 py-1 text-[12px] text-muted-foreground">
               <AiThinkingIcon/>
-              正在思考
+              <span className="shrink-0 font-medium">正在思考</span>
+              <span className="min-w-0 truncate text-[11px]">正在理解问题并选择处理方式</span>
             </div>
           )}
           {/* 底部 spacer 只负责避让悬浮输入框，不再依赖额外色块承托，避免底部出现灰色区域。 */}
@@ -1215,7 +1341,7 @@ export function AiChatPanel({ open, configStatus, device, streaming, getRecentLo
 
         <div ref={inputPanelRef} className="absolute inset-x-0 bottom-0 z-10 p-3">
           <div className={conversationContentClassName}>
-          <div className="flex items-end gap-2 rounded-xl border border-border bg-card p-2.5 shadow-[0_16px_34px_rgba(15,23,42,0.16)] transition-shadow focus-within:border-primary focus-within:shadow-[0_18px_40px_rgba(37,99,235,0.16)] dark:shadow-[0_16px_34px_rgba(0,0,0,0.34)]">
+          <div className="flex flex-col rounded-xl border border-border bg-card p-2.5 shadow-[0_16px_34px_rgba(15,23,42,0.16)] transition-shadow focus-within:border-primary focus-within:shadow-[0_18px_40px_rgba(37,99,235,0.16)] dark:shadow-[0_16px_34px_rgba(0,0,0,0.34)]">
             <textarea
               ref={inputRef}
               value={input}
@@ -1228,28 +1354,47 @@ export function AiChatPanel({ open, configStatus, device, streaming, getRecentLo
               }}
               disabled={loading || conversationListLoading}
               placeholder={waitingInput ? `请补充 ${waitingInput.inputKey}` : "输入问题，按 Enter 发送"}
-              rows={4}
-              className="max-h-40 min-h-[92px] flex-1 resize-none bg-transparent text-[13px] leading-5 outline-none placeholder:text-muted-foreground"
+              rows={3}
+              className="max-h-40 min-h-[60px] w-full resize-none bg-transparent text-[13px] leading-5 outline-none placeholder:text-muted-foreground"
             />
-            {loading ? (
+            {/* 输入框与工具区共用同一卡片，正文可使用完整宽度，模型和操作按钮在下方横向排列。 */}
+            <div className="mt-1.5 flex h-8 min-w-0 items-center justify-between gap-2">
               <button
                 type="button"
-                onClick={() => void cancelCurrent()}
-                title="停止任务"
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-red-200 bg-card text-red-500 hover:bg-red-50 dark:border-red-900 dark:hover:bg-red-950"
+                onClick={() => void toggleWebSearch()}
+                disabled={loading || checkingWebSearch}
+                aria-pressed={webSearchEnabled}
+                className={`flex h-7 shrink-0 items-center gap-1.5 rounded-md border px-2 text-[11px] transition-colors disabled:opacity-50 ${webSearchEnabled
+                  ? "border-blue-300 bg-blue-50 text-blue-600 dark:border-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
+                  : "border-slate-200 bg-transparent text-muted-foreground hover:bg-slate-50 dark:border-[#3a3b3f] dark:hover:bg-[#292a2e]"}`}
               >
-                <Square size={13}/>
+                {checkingWebSearch ? <Loader2 size={13} className="animate-spin"/> : <Globe2 size={13}/>}智能联网搜索
               </button>
-            ) : (
-              <button
-                type="button"
-                onClick={sendMessage}
-                disabled={conversationListLoading || !input.trim()}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-white shadow-sm transition-transform hover:scale-[1.03] disabled:scale-100 disabled:opacity-45"
-              >
-                <Send size={14}/>
-              </button>
-            )}
+              <div className="flex min-w-0 items-center gap-2">
+                <span title={modelLabel} className="max-w-[180px] truncate text-[10px] text-muted-foreground/70">
+                  {modelLabel}
+                </span>
+                {loading ? (
+                  <button
+                    type="button"
+                    onClick={() => void cancelCurrent()}
+                    title="停止任务"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-red-200 bg-card text-red-500 hover:bg-red-50 dark:border-red-900 dark:hover:bg-red-950"
+                  >
+                    <Square size={13}/>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={sendMessage}
+                    disabled={conversationListLoading || !input.trim()}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-white shadow-sm transition-transform hover:scale-[1.03] disabled:scale-100 disabled:opacity-45"
+                  >
+                    <ArrowUp size={15}/>
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
           <div className="mt-2 flex h-5 max-w-full items-center gap-1.5 overflow-hidden text-[10px] text-muted-foreground">
             {deviceTags.length > 0 ? deviceTags.map(tag => (
@@ -1267,6 +1412,27 @@ export function AiChatPanel({ open, configStatus, device, streaming, getRecentLo
           </div>
           </div>
         </div>
+        {webSearchPromptOpen && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/20 p-4">
+            <div role="dialog" aria-modal="true" aria-labelledby="web-search-config-title" className="w-full max-w-sm rounded-lg border border-border bg-background p-4 shadow-xl">
+              <h3 id="web-search-config-title" className="text-sm font-semibold text-foreground">需要配置 Tavily</h3>
+              <p className="mt-2 text-[12px] leading-5 text-muted-foreground">启用智能联网搜索前，请先配置 Tavily API URL 和 API Key。</p>
+              <div className="mt-4 flex justify-end gap-2">
+                <button type="button" onClick={() => setWebSearchPromptOpen(false)} className="h-8 rounded-md px-3 text-[12px] text-muted-foreground hover:bg-muted">取消</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setWebSearchPromptOpen(false);
+                    onOpenNetworkConfig();
+                  }}
+                  className="h-8 rounded-md bg-primary px-3 text-[12px] text-white hover:bg-primary/90"
+                >
+                  前往设置
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
       </div>
     </aside>

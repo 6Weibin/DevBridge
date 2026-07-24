@@ -40,8 +40,8 @@ public class AdbOutputSanitizer {
         LimitedText stdout = limit(result.stdout(), limit.maxStdoutLines(), limit.maxStdoutCharacters());
         LimitedText stderr = limit(result.stderr(), limit.maxStderrLines(), limit.maxStderrCharacters());
         return new AdbSanitizedOutput(
-                masker.maskText(stdout.text()),
-                masker.maskText(stderr.text()),
+                masker.protectCredentials(stdout.text()),
+                masker.protectCredentials(stderr.text()),
                 result.outputTruncated() || stdout.truncated() || stderr.truncated());
     }
 
@@ -53,7 +53,7 @@ public class AdbOutputSanitizer {
      */
     public String sanitizeLine(String line) {
         // 流式工具接口按行下发，异常长单行会形成超大 SSE 事件，必须先裁剪再脱敏。
-        return masker.maskText(limitLine(line));
+        return masker.protectCredentials(limitLine(line));
     }
 
     /**

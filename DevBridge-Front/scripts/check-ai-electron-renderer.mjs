@@ -18,7 +18,7 @@ fs.rmSync(target, { recursive: true, force: true });
 fs.mkdirSync(target, { recursive: true });
 
 const entry = `
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { MarkdownContent } from ${JSON.stringify(path.join(source, "MarkdownContent.tsx"))};
 import { appendContentSegment } from ${JSON.stringify(path.join(source, "aiStreamSegments.ts"))};
@@ -43,8 +43,32 @@ for (let cycle = 0; cycle < 6; cycle += 1) {
   persistedCharacters = restored.messages.reduce((total, message) => total
     + message.contentSegments.reduce((sum, segment) => sum + segment.length, 0), 0);
 }
-createRoot(document.getElementById("root")).render(React.createElement(MarkdownContent, { content: "", segments }));
-setTimeout(() => {
+
+function StreamingProbe() {
+  const [streamedSegments, setStreamedSegments] = useState([]);
+  const charactersRef = useRef(0);
+  const updatesRef = useRef(0);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const remaining = targetCharacters - charactersRef.current;
+      const next = chunk.slice(0, Math.min(chunk.length, remaining));
+      charactersRef.current += next.length;
+      updatesRef.current += 1;
+      setStreamedSegments(current => appendContentSegment(current, next));
+      if (charactersRef.current < targetCharacters) return;
+      clearInterval(timer);
+      setTimeout(() => report(updatesRef.current), 200);
+    }, 1);
+    return () => clearInterval(timer);
+  }, []);
+  return React.createElement(MarkdownContent, {
+    content: "",
+    segments: streamedSegments,
+    streaming: charactersRef.current < targetCharacters,
+  });
+}
+
+function report(streamUpdates) {
   const root = document.getElementById("root");
   const retainedSegments = Number(root.querySelector("[data-markdown-segment-count]")?.dataset.markdownSegmentCount || 0);
   const mountedSegments = root.querySelectorAll("[data-markdown-segment]").length;
@@ -58,8 +82,11 @@ setTimeout(() => {
     retainedSegments,
     mountedSegments,
     segments: segments.length,
+    streamUpdates,
   };
-}, 100);
+}
+
+createRoot(document.getElementById("root")).render(React.createElement(StreamingProbe));
 `;
 fs.writeFileSync(path.join(target, "entry.tsx"), entry);
 fs.writeFileSync(path.join(target, "index.html"), '<div id="root"></div><script type="module" src="/entry.tsx"></script>');

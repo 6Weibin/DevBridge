@@ -91,6 +91,7 @@ public class AiConversationService {
     private static final String CHAT_MAX_TOKEN_NOTICE = "\n\n[AI 回复达到模型最大输出长度限制，内容可能未完全结束。可以继续追问“继续”获取后续内容。]";
     private static final String CHAT_CONTENT_FILTER_NOTICE = "\n\n[AI 回复被 Provider 内容安全策略提前结束，内容可能不完整。]";
     private static final String TOOL_OUTPUT_TRUNCATED_NOTICE = "\n[工具输出过长，服务端已截断展示。]";
+    private static final String FINAL_RESPONSE_MARKER = "<DEVBRIDGE_FINAL>";
     public static final long CHAT_STREAM_TIMEOUT_MILLIS = 300_000L;
 
     private final AiConfigService configService;
@@ -842,7 +843,7 @@ public class AiConversationService {
                 task.conversationId(), continuationHistory(saved.history()), task.taskId(), confirmationToken,
                 new SummaryContext(saved.summary().content(), saved.summary().version(),
                         saved.summary().sourceMessageCount()),
-                new RagContext(saved.rag().content(), saved.rag().citations()));
+                new RagContext(saved.rag().content(), saved.rag().citations()), false);
     }
 
     /** 生成有界恢复进度摘要，让模型跳过已完成步骤并保持工具幂等。 */
@@ -997,6 +998,7 @@ public class AiConversationService {
             stream.finalAnswer().append(notice);
             sendChunkedContent(emitter, notice);
         }
+        normalizeFinalAnswer(stream);
         if (!StringUtils.hasText(stream.finalAnswer().toString())) {
             failTask(task.taskId(), "Provider 未返回最终回复");
             sendStreamError(emitter, new BusinessException(
@@ -1046,6 +1048,21 @@ public class AiConversationService {
             emitter.complete();
             runCallback(terminalCallback);
         }
+    }
+
+    /**
+     * 持久化前移除内部最终回复标记及其前置过程文本，历史和断流恢复只保留业务正文。
+     *
+     * @param stream 当前流状态
+     */
+    private void normalizeFinalAnswer(ChatStreamState stream) {
+        String answer = stream.finalAnswer().toString();
+        int markerIndex = answer.lastIndexOf(FINAL_RESPONSE_MARKER);
+        if (markerIndex < 0) return;
+        String normalized = answer.substring(markerIndex + FINAL_RESPONSE_MARKER.length());
+        stream.finalAnswer().setLength(0);
+        stream.finalAnswer().append(normalized);
+        stream.outputCharacters().set(normalized.length());
     }
 
     /**
@@ -1352,7 +1369,7 @@ public class AiConversationService {
                 CHAT_TEMPERATURE,
                 config.capability().toolCalling()
                         ? toolRegistry.toolCallbacks(
-                                toolScope, devicePlatform(request), config.capability())
+                                toolScope, devicePlatform(request), config.capability(), request.webSearchEnabled())
                         : List.of(),
                 context,
                 egress);
@@ -1367,23 +1384,23 @@ public class AiConversationService {
         if (request.deviceContext() != null) {
             items.add(Item.fromText(
                     DataType.DEVICE_CONTEXT, Classification.ALLOWED,
-                    "selected-device-context", true, deviceContextText(request.deviceContext())));
+                    "selected-device-context", false, deviceContextText(request.deviceContext())));
         }
         for (int index = 0; index < workingContext.history().size(); index++) {
             AiChatHistoryMessage history = workingContext.history().get(index);
             items.add(Item.fromText(
                     DataType.USER_MESSAGE, Classification.ALLOWED,
-                    "conversation-history-" + index, true, history.content()));
+                    "conversation-history-" + index, false, history.content()));
         }
         if (StringUtils.hasText(workingContext.conversationSummary())) {
             items.add(Item.fromText(
                     DataType.USER_MESSAGE, Classification.ALLOWED,
-                    "conversation-summary", true, workingContext.conversationSummary()));
+                    "conversation-summary", false, workingContext.conversationSummary()));
         }
         if (StringUtils.hasText(workingContext.ragContent())) {
             items.add(Item.fromText(
                     DataType.FILE_CONTENT, Classification.CONFIRMATION_REQUIRED,
-                    "local-rag-evidence", true, workingContext.ragContent()));
+                    "local-rag-evidence", false, workingContext.ragContent()));
         }
         return items;
     }
@@ -1480,13 +1497,13 @@ public class AiConversationService {
             WorkingContext workingContext) {
         AiDeviceContext device = request.deviceContext();
         AgentDeviceSnapshot snapshot = device == null ? null : new AgentDeviceSnapshot(
-                safeText(device.platform()), maskDeviceId(device.serial()), safeText(device.model()),
+                safeText(device.platform()), safeText(device.serial()), safeText(device.model()),
                 safeText(device.osVersion()), safeText(device.status()));
         List<AgentHistorySnapshot> history = workingContext.history().stream()
                 .map(item -> new AgentHistorySnapshot(item.role(), item.content()))
                 .toList();
         return new AgentContinuationContext(
-                contextBuilder.maskText(request.message().trim()),
+                contextBuilder.protectCredentials(request.message().trim()),
                 task.conversationId(), snapshot, history,
                 new AgentSummarySnapshot(
                         workingContext.conversationSummary(),
@@ -1601,7 +1618,7 @@ public class AiConversationService {
                         saved.summary().content(),
                         saved.summary().version(),
                         saved.summary().sourceMessageCount()),
-                new RagContext(saved.rag().content(), saved.rag().citations()));
+                new RagContext(saved.rag().content(), saved.rag().citations()), false);
     }
 
     /**
@@ -1626,7 +1643,7 @@ public class AiConversationService {
                 "AI_CONFIRMATION_CONTINUATION_FAILED",
                 "敏感操作确认后的任务续跑失败",
                 HttpStatus.INTERNAL_SERVER_ERROR,
-                contextBuilder.maskText(error.getMessage() == null
+                contextBuilder.protectCredentials(error.getMessage() == null
                         ? error.getClass().getSimpleName()
                         : error.getMessage()));
     }
@@ -1695,7 +1712,7 @@ public class AiConversationService {
                     taskApplicationService.resumeTask(request.taskId().trim(), conversationId), true);
         }
         return taskApplicationService.startTaskResult(new CreateAgentTaskCommand(
-                conversationId, contextBuilder.maskText(request.message()), idempotencyKey));
+                conversationId, contextBuilder.protectCredentials(request.message()), idempotencyKey));
     }
 
     /**
@@ -2128,20 +2145,6 @@ public class AiConversationService {
      */
     private String toolEventKey(AgentTask task, Map<String, Object> context) {
         return task.taskId() + ":" + String.valueOf(context.get("turnId"));
-    }
-
-    /**
-     * 对持久化设备标识保留最小可识别片段，真实执行值只存在于加密工具请求中。
-     *
-     * @param deviceId 原设备标识
-     * @return 掩码设备标识
-     */
-    private String maskDeviceId(String deviceId) {
-        String value = safeText(deviceId);
-        if (value.length() <= 4) {
-            return value.isEmpty() ? "" : "****";
-        }
-        return value.substring(0, 2) + "****" + value.substring(value.length() - 2);
     }
 
     /**

@@ -115,7 +115,7 @@ public class WebSearchToolAdapter implements ToolAdapter {
     private CallResult fetch(CallRequest request, RiskDecision decision, Instant started) {
         String url = requiredText(request, "url", "网页 URL 不能为空");
         int maxCharacters = request.arguments().path("maxCharacters").asInt(0);
-        // 网页读取同样要求显式启用网络能力，防止只保存搜索配置但关闭开关后继续外联。
+        // 请求开关控制工具可见性，执行时再次校验持久化开关，防止跨窗口状态过期。
         configService.requireEnabled();
         FetchResponse response = client.fetch(url, maxCharacters, request.identity().toolCallId());
         ObjectNode output = objectMapper.valueToTree(response);

@@ -104,7 +104,8 @@ public class AiLogAnalysisService {
         validate(request);
         List<AiLogLine> sourceLogs = sourceLogs(request);
         LimitedLogs limited = limitLogs(sourceLogs, limits(request.limits()));
-        List<AiLogLine> maskedLogs = masker.maskLogs(limited.logs());
+        // 用户已授权当前分析场景，日志保留业务原文，仅清理认证凭据。
+        List<AiLogLine> maskedLogs = masker.protectLogCredentials(limited.logs());
         AiRuntimeConfig config = configService.requireConfigured();
         AiProviderResponse response = providerGateway.chat(new AiProviderRequest(
                 config,
@@ -223,10 +224,10 @@ public class AiLogAnalysisService {
     }
 
     /**
-     * 构造用户提示词，包含设备摘要、截断状态和脱敏后的日志。
+     * 构造用户提示词，包含设备摘要、容量状态和保留业务原文的日志。
      *
      * @param request 原始请求
-     * @param logs 脱敏日志
+     * @param logs 已执行凭据保护的日志
      * @param truncated 是否截断
      * @return 用户提示词
      */
@@ -238,7 +239,7 @@ public class AiLogAnalysisService {
         builder.append("用户问题：").append(StringUtils.hasText(request.question()) ? request.question() : "请分析当前日志中的异常。").append("\n\n");
         builder.append("日志证据：\n").append(untrustedContentService.wrap(new Envelope(
                 SourceType.DEVICE_LOG,
-                "device-" + masker.maskSerial(device.serial()),
+                "device-" + device.serial(),
                 "移动设备日志诊断证据",
                 "lines 1-" + logs.size(),
                 logContent(logs))));
@@ -246,9 +247,9 @@ public class AiLogAnalysisService {
     }
 
     /**
-     * 将脱敏日志格式化为封装正文，封装边界由上层统一添加。
+     * 将保留业务原文的日志格式化为封装正文，封装边界由上层统一添加。
      *
-     * @param logs 脱敏日志
+     * @param logs 已执行凭据保护的日志
      * @return 日志文本
      */
     private String logContent(List<AiLogLine> logs) {
@@ -268,7 +269,7 @@ public class AiLogAnalysisService {
      *
      * @param answer AI 原始回复
      * @param device 设备上下文
-     * @param logs 已脱敏日志
+     * @param logs 已执行凭据保护的日志
      * @param truncated 是否截断
      * @return 结构化响应
      */
@@ -276,7 +277,7 @@ public class AiLogAnalysisService {
         ParsedAnalysis parsed = parseAnalysis(answer, logs);
         AiLogAnalysisContext context = new AiLogAnalysisContext(
                 device.platform(),
-                device.model() + " / " + masker.maskSerial(device.serial()),
+                device.model() + " / " + device.serial(),
                 logRange(logs),
                 logs.size(),
                 truncated);
@@ -297,7 +298,7 @@ public class AiLogAnalysisService {
      * @return 结构化分析结果
      */
     private ParsedAnalysis parseAnalysis(String answer, List<AiLogLine> logs) {
-        String text = masker.maskText(answer);
+        String text = masker.protectCredentials(answer);
         try {
             ParsedAnalysis parsed = objectMapper.readValue(stripJsonFence(text), ParsedAnalysis.class);
             return normalize(parsed, logs, text);

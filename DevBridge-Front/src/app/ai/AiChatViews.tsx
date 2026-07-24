@@ -4,7 +4,7 @@
  * by AI.Coding
  */
 import React from "react";
-import { Activity, Check, ChevronDown, ChevronRight, Copy, MessageSquare, Plus, Sparkles, Terminal } from "lucide-react";
+import { Activity, Bot, Check, ChevronDown, ChevronRight, Copy, MessageSquare, Plus, Sparkles, Terminal } from "lucide-react";
 import { AiConfirmationCard } from "./AiConfirmationCard";
 import { AiToolCallCard } from "./AiToolCallCard";
 import { materializeContent } from "./aiStreamSegments";
@@ -52,6 +52,8 @@ export function AiHomePanel({ title, prompts, disabled, onPrompt }: AiHomePanelP
 interface AiConversationHistoryProps {
   conversations: AiConversationListItem[];
   activeConversationId: string;
+  assistantName: string;
+  deviceConnected: boolean;
   loading: boolean;
   hasMore: boolean;
   formatTime: (value: number) => string;
@@ -66,7 +68,18 @@ export function AiConversationHistory(props: AiConversationHistoryProps) {
   const { conversations, activeConversationId, loading, hasMore, formatTime } = props;
   return (
     <div className="relative z-10 flex w-[188px] shrink-0 flex-col border-r border-slate-200 bg-slate-50 shadow-[8px_0_18px_rgba(15,23,42,0.035)] dark:border-[#2f3033] dark:bg-[#1f2023] dark:shadow-[8px_0_18px_rgba(0,0,0,0.14)]">
-      <div className="bg-slate-50 px-2.5 pt-2 pb-1 dark:bg-[#1f2023]">
+      <div className="px-3 pb-2 pt-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-primary/20 bg-primary/10 text-primary">
+            <Bot size={16}/>
+            <span className={`absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full ring-2 ring-slate-50 dark:ring-[#1f2023] ${props.deviceConnected ? "bg-emerald-500" : "bg-slate-400"}`}/>
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[12px] font-semibold text-foreground">{props.assistantName}</p>
+          </div>
+        </div>
+      </div>
+      <div className="px-2.5 pb-1 pt-1">
         <button
           type="button"
           onClick={props.onNewConversation}
@@ -246,8 +259,9 @@ export function AiProcessCard({
 }) {
   const toolCount = process.entries.filter(entry => entry.type === "tool").length;
   const waitingConfirmation = process.entries.some(entry => entry.toolResult?.confirmationRequired);
-  const title = waitingConfirmation ? "等待用户确认" : process.active ? "正在思考与执行" : "已处理";
+  const title = waitingConfirmation ? "等待用户确认" : process.active ? "正在思考" : "已处理";
   const summary = toolCount > 0 ? `${process.entries.length} 个步骤 / ${toolCount} 次工具调用` : `${process.entries.length} 个步骤`;
+  const latest = latestProcessSummary(process);
   const duration = processDurationLabel(process);
   return (
     <div className="mr-8 min-w-0 max-w-full overflow-hidden text-[12px]">
@@ -258,9 +272,15 @@ export function AiProcessCard({
       >
         {process.expanded ? <ChevronDown size={13}/> : <ChevronRight size={13}/>} 
         {process.active ? <AiThinkingIcon/> : <Sparkles size={13} className={waitingConfirmation ? "text-amber-500" : "text-primary"}/>} 
-        <span className="min-w-0 text-[12px] font-medium">{title}</span>
-        {duration && <span className="text-[11px] font-normal text-muted-foreground">{duration}</span>}
-        <span className="text-[11px] font-normal text-muted-foreground">{summary}</span>
+        <span className="shrink-0 text-[12px] font-medium">{title}</span>
+        {process.active ? (
+          <span className="min-w-0 flex-1 truncate text-[11px] font-normal text-muted-foreground">{latest}</span>
+        ) : (
+          <>
+            {duration && <span className="text-[11px] font-normal text-muted-foreground">{duration}</span>}
+            <span className="min-w-0 truncate text-[11px] font-normal text-muted-foreground">{summary}</span>
+          </>
+        )}
       </button>
       {process.expanded && (
         <div className="min-w-0 max-w-full space-y-0 overflow-hidden">
@@ -278,6 +298,18 @@ export function AiProcessCard({
       )}
     </div>
   );
+}
+
+/** 折叠状态展示最新可观察步骤，不暴露模型内部推理链。 */
+function latestProcessSummary(process: AiProcessState) {
+  const latest = process.entries[process.entries.length - 1];
+  if (!latest) return "正在理解问题并选择处理方式";
+  if (latest.toolResult) {
+    if (latest.status === "failed") return `${latest.label}执行失败，正在分析原因`;
+    if (latest.status === "running") return `正在执行${latest.label}`;
+    return `${latest.label}执行完成，正在分析结果`;
+  }
+  return latest.detail || latest.label || "正在分析当前任务";
 }
 
 /** 渲染单个过程步骤。 */

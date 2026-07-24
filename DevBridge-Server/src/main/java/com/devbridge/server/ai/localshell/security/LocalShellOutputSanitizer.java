@@ -40,8 +40,8 @@ public class LocalShellOutputSanitizer {
         LimitedText stdout = limit(result.stdout(), limit.maxStdoutLines(), limit.maxStdoutCharacters());
         LimitedText stderr = limit(result.stderr(), limit.maxStderrLines(), limit.maxStderrCharacters());
         return new AdbSanitizedOutput(
-                masker.maskText(stdout.text()),
-                masker.maskText(stderr.text()),
+                masker.protectCredentials(stdout.text()),
+                masker.protectCredentials(stderr.text()),
                 result.outputTruncated() || stdout.truncated() || stderr.truncated());
     }
 
@@ -52,7 +52,7 @@ public class LocalShellOutputSanitizer {
      * @return 脱敏输出行
      */
     public String sanitizeLine(String line) {
-        return masker.maskText(limitLine(line));
+        return masker.protectCredentials(limitLine(line));
     }
 
     /**
@@ -62,7 +62,7 @@ public class LocalShellOutputSanitizer {
      * @return 脱敏命令摘要
      */
     public String sanitizeCommand(String command) {
-        return masker.maskText(command == null ? "" : command);
+        return masker.protectCredentials(command == null ? "" : command);
     }
 
     /**

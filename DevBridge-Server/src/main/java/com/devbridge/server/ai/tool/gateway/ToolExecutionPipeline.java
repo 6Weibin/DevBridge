@@ -122,9 +122,9 @@ public class ToolExecutionPipeline {
         AgentCancellationRegistration cancellation = registerCancellation(registration, request, definition);
         try (AgentResourceLease ignored = acquire(request, definition, resources)) {
             CallResult result = registration.adapter().execute(request, definition, decision);
-            CallResult sanitized = sanitize(result);
-            complete(request, sanitized);
-            return sanitized;
+            CallResult protectedResult = protectCredentials(result);
+            complete(request, protectedResult);
+            return protectedResult;
         } catch (RuntimeException ex) {
             CallResult failure = failure(request, decision, ex);
             complete(request, failure);
@@ -302,21 +302,21 @@ public class ToolExecutionPipeline {
     }
 
     /**
-     * 将 Adapter 结果中的文本统一脱敏。
+     * 保留 Adapter 返回的业务原文，仅清理认证凭据。
      *
      * @param result Adapter 原始结果
-     * @return 脱敏结果
+     * @return 已执行凭据保护的结果
      */
-    private CallResult sanitize(CallResult result) {
+    private CallResult protectCredentials(CallResult result) {
         ResultPayload payload = result.payload();
         Error error = result.diagnostics().error();
         ResultPayload sanitizedPayload = new ResultPayload(
-                sanitizeJson(payload.output()),
-                masker.maskText(payload.summary()),
+                protectJsonCredentials(payload.output()),
+                masker.protectCredentials(payload.summary()),
                 payload.artifacts());
         Error sanitizedError = error == null ? null : new Error(
-                error.code(), error.category(), masker.maskText(error.message()),
-                masker.maskText(error.detail()), error.retryable(), error.resultUncertain());
+                error.code(), error.category(), masker.protectCredentials(error.message()),
+                masker.protectCredentials(error.detail()), error.retryable(), error.resultUncertain());
         Diagnostics diagnostics = new Diagnostics(
                 sanitizedError, result.diagnostics().exit(), result.diagnostics().metrics(), result.diagnostics().sideEffect());
         return new CallResult(
@@ -325,24 +325,24 @@ public class ToolExecutionPipeline {
     }
 
     /**
-     * 递归脱敏 JSON 字符串值。
+     * 递归保留 JSON 业务字段并清理认证凭据。
      *
      * @param value 原始 JSON
-     * @return 脱敏 JSON
+     * @return 已执行凭据保护的 JSON
      */
-    private JsonNode sanitizeJson(JsonNode value) {
+    private JsonNode protectJsonCredentials(JsonNode value) {
         if (value == null || value.isNull()) {
             return value;
         }
         if (value.isTextual()) {
-            return com.fasterxml.jackson.databind.node.TextNode.valueOf(masker.maskText(value.asText()));
+            return com.fasterxml.jackson.databind.node.TextNode.valueOf(masker.protectCredentials(value.asText()));
         }
         JsonNode copy = value.deepCopy();
         if (copy instanceof ObjectNode object) {
-            object.fields().forEachRemaining(entry -> object.set(entry.getKey(), sanitizeJson(entry.getValue())));
+            object.fields().forEachRemaining(entry -> object.set(entry.getKey(), protectJsonCredentials(entry.getValue())));
         } else if (copy instanceof ArrayNode array) {
             for (int index = 0; index < array.size(); index++) {
-                array.set(index, sanitizeJson(array.get(index)));
+                array.set(index, protectJsonCredentials(array.get(index)));
             }
         }
         return copy;
@@ -369,8 +369,8 @@ public class ToolExecutionPipeline {
         Error detail = new Error(
                 code,
                 ErrorCategory.EXECUTION,
-                masker.maskText(message),
-                masker.maskText(diagnostic),
+                masker.protectCredentials(message),
+                masker.protectCredentials(diagnostic),
                 false,
                 false);
         return result(request, decision, CallStatus.FAILED, null, detail.message(), detail, false);

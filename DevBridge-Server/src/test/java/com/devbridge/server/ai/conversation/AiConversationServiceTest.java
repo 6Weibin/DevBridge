@@ -754,7 +754,7 @@ class AiConversationServiceTest {
                         + request.toolContext().get("turnId");
                 toolEvents.publish(subscriptionId, AdbMcpToolResult.success(
                         "设备状态正常", "", 0, 10, false, AdbRiskLevel.LOW));
-                listener.onContent("工具后的最终回复");
+                listener.onContent("<DEVBRIDGE_FINAL>工具后的最终回复");
                 listener.onComplete("STOP");
                 return () -> { };
             }

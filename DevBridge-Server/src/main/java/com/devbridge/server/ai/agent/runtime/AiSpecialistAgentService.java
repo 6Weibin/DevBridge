@@ -120,7 +120,7 @@ public class AiSpecialistAgentService {
     /** 返回脱敏后的确认摘要。 */
     public String confirmationSummary(String agentId, JsonNode arguments) {
         SpecialistCall call = parse(arguments, agentId);
-        String masked = masker.maskText(call.arguments().toString());
+        String masked = masker.protectCredentials(call.arguments().toString());
         String bounded = masked.length() <= 500 ? masked : masked.substring(0, 500) + "...";
         return requireAgent(agentId).identity().displayName()
                 + " 将执行 " + call.operation() + "，参数=" + bounded;

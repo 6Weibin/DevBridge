@@ -12,6 +12,21 @@ import org.junit.jupiter.api.Test;
 class SensitiveDataMaskerTest {
 
     /**
+     * 验证 AI 业务数据保留邮箱、手机号和设备信息，同时继续隐藏认证凭据。
+     */
+    @Test
+    void protectCredentialsShouldPreserveBusinessData() {
+        SensitiveDataMasker masker = new SensitiveDataMasker();
+
+        String protectedText = masker.protectCredentials(
+                "user=a@b.com phone=13812345678 serial=ABC123 token=secret");
+
+        assertThat(protectedText)
+                .contains("a@b.com", "13812345678", "ABC123", "token=***")
+                .doesNotContain("token=secret");
+    }
+
+    /**
      * 验证 Authorization、token、邮箱和手机号都会被脱敏。
      */
     @Test

@@ -134,11 +134,20 @@ public class AiToolRegistry {
             AiToolScope scope,
             Platform devicePlatform,
             com.devbridge.server.ai.config.AiModelCapabilityRegistry.ModelCapability model) {
+        return toolCallbacks(scope, devicePlatform, model, true);
+    }
+
+    /** 使用请求级开关控制是否向模型暴露联网工具。 */
+    public List<ToolCallback> toolCallbacks(
+            AiToolScope scope,
+            Platform devicePlatform,
+            com.devbridge.server.ai.config.AiModelCapabilityRegistry.ModelCapability model,
+            boolean webSearchEnabled) {
         if (toolGateway == null) {
             // 测试 Fake 可能只覆盖旧签名，动态分派可以保持既有测试和扩展兼容。
             return toolCallbacks(scope, devicePlatform);
         }
-        return directToolCallbacks(scope, devicePlatform, model);
+        return directToolCallbacks(scope, devicePlatform, model, webSearchEnabled);
     }
 
     /** 生成候选集合并按已装配 Router 收敛。 */
@@ -146,12 +155,23 @@ public class AiToolRegistry {
             AiToolScope scope,
             Platform devicePlatform,
             com.devbridge.server.ai.config.AiModelCapabilityRegistry.ModelCapability model) {
+        return directToolCallbacks(scope, devicePlatform, model, true);
+    }
+
+    /** 生成候选工具时先应用当前请求的联网权限。 */
+    private List<ToolCallback> directToolCallbacks(
+            AiToolScope scope,
+            Platform devicePlatform,
+            com.devbridge.server.ai.config.AiModelCapabilityRegistry.ModelCapability model,
+            boolean webSearchEnabled) {
         if (scope == AiToolScope.NONE || toolGateway == null) {
             return List.of();
         }
         Platform effectiveDevice = devicePlatform == null ? Platform.ANDROID : devicePlatform;
         List<Definition> candidates = toolGateway.listTools().stream()
                 .filter(definition -> visible(definition, scope, effectiveDevice))
+                .filter(definition -> webSearchEnabled
+                        || !definition.identity().toolId().startsWith("web."))
                 .toList();
         Set<String> selected = routedToolIds(candidates, scope, effectiveDevice, model);
         return candidates.stream()

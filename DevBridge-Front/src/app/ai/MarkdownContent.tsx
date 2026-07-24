@@ -32,19 +32,58 @@ export const MarkdownContent = React.memo(function MarkdownContent({ content, se
   if (values.length === 0) {
     return <span className="text-muted-foreground">正在生成...</span>;
   }
+  const stableCount = streaming ? Math.max(0, values.length - 1) : values.length;
   return (
     <div className="space-y-2 break-words" data-markdown-segment-count={values.length}>
-      {values.map((value, index) => (
+      <StableMarkdownSegments values={values} count={stableCount} totalCount={values.length}/>
+      {streaming && (
         <LazyMarkdownSegment
-          key={index}
-          content={value}
-          eager={index >= values.length - EAGER_TAIL_SEGMENTS}
-          streaming={streaming && index === values.length - 1}
+          content={values[values.length - 1]}
+          eager
+          streaming
         />
-      ))}
+      )}
     </div>
   );
 });
+
+/**
+ * 稳定分段仅在新增分段时重建节点，流式尾段增长时复用整棵历史子树。
+ */
+const StableMarkdownSegments = React.memo(function StableMarkdownSegments({
+  values,
+  count,
+  totalCount,
+}: {
+  values: string[];
+  count: number;
+  totalCount: number;
+}) {
+  return (
+    <>
+      {values.slice(0, count).map((value, index) => (
+        <LazyMarkdownSegment
+          key={index}
+          content={value}
+          eager={index >= totalCount - EAGER_TAIL_SEGMENTS}
+          streaming={false}
+        />
+      ))}
+    </>
+  );
+}, stableMarkdownSegmentsEqual);
+
+/**
+ * 追加流式正文只会改变尾段；稳定分段数量和末项引用不变时可以安全复用。
+ */
+function stableMarkdownSegmentsEqual(
+  previous: { values: string[]; count: number; totalCount: number },
+  next: { values: string[]; count: number; totalCount: number },
+) {
+  if (previous.count !== next.count || previous.totalCount !== next.totalCount) return false;
+  if (next.count === 0) return true;
+  return previous.values[next.count - 1] === next.values[next.count - 1];
+}
 
 /**
  * 仅挂载视口附近或流式尾部的 Markdown，屏外内容保留等高占位，避免一次解析 1M Token。
@@ -103,10 +142,8 @@ function estimateSegmentHeight(content: string) {
  * 解析并渲染单个已进入视口的稳定 Markdown 分段。
  */
 const MarkdownSegment = React.memo(function MarkdownSegment({ content, streaming }: { content: string; streaming: boolean }) {
-  const deferredContent = React.useDeferredValue(content);
-  // 短尾段立即解析；长尾段降为低优先级，避免长任务持续占满 Renderer 主线程。
-  const renderContent = streaming && content.length > 2_000 ? deferredContent : content;
-  const blocks = React.useMemo(() => parseBlocks(renderContent), [renderContent]);
+  // 上游已经按固定节奏刷新且尾段有长度上限，直接解析可避免 deferred 更新在长任务中持续排队。
+  const blocks = React.useMemo(() => parseBlocks(content), [content]);
   return (
     <section
       className="space-y-2"

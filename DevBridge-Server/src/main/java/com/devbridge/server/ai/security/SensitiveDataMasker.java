@@ -33,6 +33,18 @@ public class SensitiveDataMasker {
     }
 
     /**
+     * 保留用户业务数据原文，仅隐藏可直接用于认证的凭据。
+     *
+     * @param text 原始业务文本
+     * @return 仅移除认证凭据后的文本
+     */
+    public String protectCredentials(String text) {
+        String result = text == null ? "" : text;
+        result = AUTHORIZATION.matcher(result).replaceAll("$1***");
+        return SECRET_ASSIGNMENT.matcher(result).replaceAll("$1=***");
+    }
+
+    /**
      * 对设备序列号做中间脱敏；短序列号直接整体隐藏，避免误暴露设备标识。
      *
      * @param serial 设备序列号
@@ -60,6 +72,23 @@ public class SensitiveDataMasker {
                         line.pid(),
                         maskText(line.tag()),
                         maskText(line.message())))
+                .toList();
+    }
+
+    /**
+     * 保留日志中的设备和用户业务数据，仅清理认证凭据。
+     *
+     * @param logs 原始日志列表
+     * @return 保留业务原文的日志列表
+     */
+    public List<AiLogLine> protectLogCredentials(List<AiLogLine> logs) {
+        return logs.stream()
+                .map(line -> new AiLogLine(
+                        line.timestamp(),
+                        line.level(),
+                        line.pid(),
+                        protectCredentials(line.tag()),
+                        protectCredentials(line.message())))
                 .toList();
     }
 }

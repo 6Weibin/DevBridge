@@ -5,5 +5,5 @@
  */
 window.DEVBRIDGE_BUILD_INFO = {
   name: "Ai DevBridge",
-  version: "V2026.7.0199"
+  version: "V2026.7.0238"
 };
